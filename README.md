@@ -68,8 +68,8 @@ Invalid configurations are prevented in real time.
 
 This feature helps users identify time- or cost-intensive RAMs within a workflow and evaluate potential bottlenecks before execution.
 
-![Workflow Evaluation](docs/evaluation.png)
-
+![Workflow Evaluation](docs/evaluation1.png)
+![Workflow Evaluation](docs/evaluation2.png)
 ---
 
 ### 4. Workflow Comparative Analytics
