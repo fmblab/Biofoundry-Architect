@@ -20,10 +20,11 @@ The platform provides an integrated environment for:
 
 - **RAM construction** (modular experimental units)  
 - **Workflow assembly** with constraint-aware validation  
-- **Workflow evaluation** using quantitative metrics:
+- **Workflow evaluation** using quantitative metrics and resource breakdowns:
   - Turnaround time (TAT)  
   - Total cost (labor + materials)  
   - Experimental price index (EPI)  
+  - Time and cost contributions by RAM    
 - **Workflow comparative analytics** with automatic insight generation  
 - **Resource-constrained loop simulation** for capacity planning  
 
@@ -55,10 +56,17 @@ Invalid configurations are prevented in real time.
 ---
 
 ### 3. Workflow Evaluation
-- Compute:
+- Compute workflow-level metrics:
   - Turnaround time (TAT)  
   - Total cost  
   - Experimental price index (EPI)  
+
+- Inspect detailed resource breakdowns:
+  - Operation time and hands-on time by RAM  
+  - Material cost and labor cost contributions  
+  - RAM-level contribution to total workflow time and cost  
+
+This feature helps users identify time- or cost-intensive RAMs within a workflow and evaluate potential bottlenecks before execution.
 
 ![Workflow Evaluation](docs/evaluation.png)
 
@@ -147,7 +155,7 @@ All workflows are stored in structured formats, enabling reproducibility:
 - Export supported in:
   - JSON  
   - Spreadsheet (XLSX-compatible)
-  - txt
+  - TXT
 
 Representative exported data are provided in Supplementary Data.
 
