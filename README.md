@@ -190,12 +190,6 @@ Supplementary materials include:
 
 ---
 
-## 📜 License
-
-All code is released under license GNU General Public License version 3 (GNU GPLv3) and the datasets are made available under Creative Commons Attribution 4.0 International (CC BY NC SA 4.0) license.
-
----
-
 ## 📬 Contact
 
 For access codes or inquiries:
