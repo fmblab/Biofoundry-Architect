@@ -107,7 +107,7 @@ This feature enables **interpretable, data-driven comparison of workflows**, sup
 
 This feature enables **capacity planning and resource-constrained optimization** of laboratory workflows.
 
-![Loop Simulation](docs/loop_simulation.png)
+![Loop Simulation](docs/loopsimulation.png)
 
 ---
 
