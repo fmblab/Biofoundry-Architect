@@ -56,7 +56,7 @@ Invalid configurations are prevented in real time.
 
 ### 3. Workflow Evaluation
 - Compute:
-  - Total turnaround time (TAT)  
+  - Turnaround time (TAT)  
   - Total cost  
   - Experimental price index (EPI)  
 
