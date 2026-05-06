@@ -18,7 +18,7 @@ Biofoundry Architect is a **web-based platform** for designing, analyzing, and o
 
 The platform provides an integrated environment for:
 
-- **RAM construction** (modular experimental units)  
+- **RAM construction** (Robot-assisted module; basic operation units)  
 - **Workflow assembly** with constraint-aware validation  
 - **Workflow evaluation** using quantitative metrics and resource breakdowns:
   - Turnaround time (TAT)  
@@ -33,7 +33,7 @@ The platform provides an integrated environment for:
 ## 🚀 How to Use
 
 ### 1. RAM Construction
-Define a modular experimental unit including:
+Define a RAM including:
 - Process actions (e.g., liquid transfer, colony picking)  
 - Hardware configuration (robots and functional devices)  
 - Substance input/output (I/O)  
