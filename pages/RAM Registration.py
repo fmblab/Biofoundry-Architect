@@ -21,14 +21,15 @@ ACTION_ROBOT_GUIDE = {
     "Labware Transfer": "RoMa is recommended for this action."
 }
 MOTION_OPTIONS = ["Colony Picking", "Liquid Transfer", "Labware Transfer"]
-VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate", "Flexible vessel"]
+VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate"]
 # [SYNCED] Substance Class List
 SUBSTANCE_CLASSES = ["DNA", "Reaction Mix", "Buffer", "Solvent", "Liquid Medium", "Cells", "Solid Medium (Plate)",
                      "Fraction", "Analyte / Sample", "Data"]
 UNIT_OPTIONS = ["rxn", "ea", "uL", "mL"]
 
 conn = st.connection("gsheets", type=GSheetsConnection)
-
+READ_TTL_SHORT = "10m"
+READ_TTL_LONG = "1h"
 
 # ==========================================
 # 1. Utilities & Session State Management
@@ -127,10 +128,11 @@ def to_float(val):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_asset_sheet_data(worksheet_name):
+def get_asset_sheet_data(worksheet_name, ttl=READ_TTL_LONG):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl="1h")
-        if df is None or df.empty: return pd.DataFrame()
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=ttl)
+        if df is None or df.empty:
+            return pd.DataFrame()
         df.columns = [c.strip() for c in df.columns]
         return df
     except:
@@ -138,10 +140,11 @@ def get_asset_sheet_data(worksheet_name):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_db_sheet_data(worksheet_name):
+def get_db_sheet_data(worksheet_name, ttl=READ_TTL_LONG):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl="1h")
-        if df is None or df.empty: return pd.DataFrame()
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=ttl)
+        if df is None or df.empty:
+            return pd.DataFrame()
         df.columns = [c.strip() for c in df.columns]
         return df
     except:
@@ -207,38 +210,32 @@ def load_template_to_state(template_row, assets, include_econ=False):
 def register_cloud_asset(hw_type, data_dict, access_code, auth_df):
     """
     Registers hardware assets (Robot, Device, Vessel) to the cloud with quota validation.
+    Uses cached reads to reduce Google Sheets API calls.
     """
-    # 1. Determine the target worksheet
     prefix = "Master" if str(access_code).strip() == MASTER_CODE else "User"
     sheet_name = f"{prefix}_Robotic_Units" if hw_type == "Robot" else (
-        f"{prefix}_Functional_Devices" if hw_type == "Device" else f"{prefix}_Vessels")
+        f"{prefix}_Functional_Devices" if hw_type == "Device" else f"{prefix}_Vessels"
+    )
 
     try:
-        # 2. Load cloud data
-        existing_df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=sheet_name, ttl=0)
+        existing_df = get_asset_sheet_data(sheet_name)
 
-        # 3. [Normalize Case] Check and create access_code header
-        if not existing_df.empty and 'access_code' not in existing_df.columns:
+        if existing_df is None or existing_df.empty:
+            existing_df = pd.DataFrame()
+
+        if 'access_code' not in existing_df.columns:
             existing_df['access_code'] = ""
 
-        # 4. Quota validation via Auth_manage module
         can_reg, msg = am.check_registration_quota(existing_df, access_code, auth_df)
 
         if not can_reg:
-            return False, msg  # Return rejection message if quota is exceeded
+            return False, msg
 
-        # 5. Data preparation and merging
         data_dict['access_code'] = access_code
         new_row = pd.DataFrame([data_dict])
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
 
-        # 6. Update cloud
         conn.update(spreadsheet=MY_SHEET_URL, worksheet=sheet_name, data=updated_df)
-
-        # Clear cache to reflect the latest data on the next load
-        get_asset_sheet_data.clear()
-        if 'assets_cache' in st.session_state:
-            del st.session_state.assets_cache
 
         return True, msg
 
@@ -250,36 +247,57 @@ def register_cloud_asset(hw_type, data_dict, access_code, auth_df):
 # 3. Data Synchronization & Loading
 # ==========================================
 
-# Clear cache and session state if a DB refresh is required
+# Clear RAM DB cache only when RAM DB was changed
 if st.session_state.get('db_needs_refresh', False):
     get_db_sheet_data.clear()
-    if 'full_db' in st.session_state: del st.session_state.full_db
-    if 'auth_df' in st.session_state: del st.session_state.auth_df
+
+    for key in ['full_db', 'm_db', 'u_db_cloud']:
+        if key in st.session_state:
+            del st.session_state[key]
+
+    # Keep auth_df and assets_cache unless explicitly changed
     st.session_state.db_needs_refresh = False
 
-# Load data only if it is not in session state (API call optimization)
-if 'assets_cache' not in st.session_state or 'full_db' not in st.session_state or 'auth_df' not in st.session_state:
-    with st.spinner("⚡ Loading Latest Data..."):
-        # 1. Load hardware assets
+
+# Clear asset cache only when Robot/Device/Vessel was newly registered
+if st.session_state.get('assets_needs_refresh', False):
+    get_asset_sheet_data.clear()
+
+    if 'assets_cache' in st.session_state:
+        del st.session_state.assets_cache
+
+    st.session_state.assets_needs_refresh = False
+
+
+# Load hardware assets only when needed
+if 'assets_cache' not in st.session_state:
+    with st.spinner("⚡ Loading hardware assets..."):
         st.session_state.assets_cache = load_all_assets_optimized()
 
-        # 2. Load Master/User DB
-        st.session_state.m_db = get_db_sheet_data('RAM_MasterDB')
-        st.session_state.u_db_cloud = get_db_sheet_data('RAM_UserDB')
 
-        # 3. [New] Load authorization and quota information
-        st.session_state.auth_df = get_db_sheet_data('Access_codelist')
+# Load RAM databases only when needed
+if 'full_db' not in st.session_state:
+    with st.spinner("⚡ Loading RAM database..."):
+        st.session_state.m_db = get_db_sheet_data('RAM_MasterDB', ttl=READ_TTL_SHORT)
+        st.session_state.u_db_cloud = get_db_sheet_data('RAM_UserDB', ttl=READ_TTL_SHORT)
 
-        # 4. Merge and preprocess the entire DB
-        combined_db = pd.concat([st.session_state.m_db, st.session_state.u_db_cloud], ignore_index=True)
+        combined_db = pd.concat(
+            [st.session_state.m_db, st.session_state.u_db_cloud],
+            ignore_index=True
+        )
 
-        # Prevent Arrow TypeError: Handle NaNs and force string type
         target_cols = ['RAM_ID', 'RAM_Name', 'Process_Action', 'Robot', 'Functional_Device']
         for col in target_cols:
             if col in combined_db.columns:
                 combined_db[col] = combined_db[col].fillna("").astype(str)
 
         st.session_state.full_db = combined_db
+
+
+# Load access code list only when needed
+if 'auth_df' not in st.session_state:
+    with st.spinner("⚡ Loading access code list..."):
+        st.session_state.auth_df = get_db_sheet_data('Access_codelist', ttl=READ_TTL_LONG)
 
 # Assign cached data to local variables
 assets = st.session_state.assets_cache
@@ -400,9 +418,11 @@ if st.session_state.reg_step == 1:
                 nr_m = st.pills("Available Motion", MOTION_OPTIONS, selection_mode="multi", key="nr_motion_pills")
                 nr_f = st.text_area("Function/Description", key="nr_func_input")
                 nr_c = st.text_input("Access Code", type="password", key="nr_code_input")
+
+                robot_msg_box = st.empty()
+
                 if st.button("Register Robot", width='stretch', key="nr_reg_btn"):
                     if nr_n and nr_id:
-                        # Passing auth_df at the end is the key
                         success, msg = register_cloud_asset("Robot", {
                             "Robot_Name": nr_n,
                             "Robotic_unit": nr_id,
@@ -411,13 +431,20 @@ if st.session_state.reg_step == 1:
                         }, nr_c, auth_df)
 
                         if success:
-                            st.success(f"Success: {msg}")  # Display success message from auth_manage
-                            time.sleep(1)
-                            st.rerun()
+                            r_map, r_list, r_info = assets["robot"]
+
+                            r_map[nr_n] = nr_id
+                            r_list = sorted(list(set(r_list + [nr_n])))
+                            r_info[nr_n] = nr_f
+
+                            assets["robot"] = (r_map, r_list, r_info)
+                            st.session_state.assets_cache = assets
+
+                            robot_msg_box.success(f"Success: {msg}\n\nThe new robot is now available in this session.")
                         else:
-                            st.error(msg)  # Display failure reason (e.g., quota exceeded)
+                            robot_msg_box.error(msg)
                     else:
-                        st.error("Please fill required fields.")
+                        robot_msg_box.error("Please fill required fields.")
 
         # [Restore] Device selection and new registration
         col_d1, col_d2 = st.columns([0.85, 0.15], vertical_alignment="bottom")
@@ -435,9 +462,11 @@ if st.session_state.reg_step == 1:
                 nd_id = st.text_input("Abbreviation", key="nd_id_input")
                 nd_f = st.text_area("Function/Description", key="nd_func_input")
                 nd_c = st.text_input("Access Code", type="password", key="nd_code_input")
+
+                device_msg_box = st.empty()
+
                 if st.button("Register Device", width='stretch', key="nd_reg_btn"):
                     if nd_n and nd_id:
-                        # Add auth_df and receive two return values
                         success, msg = register_cloud_asset("Device", {
                             "Device_Name": nd_n,
                             "Device_Functional_Unit": nd_id,
@@ -445,13 +474,21 @@ if st.session_state.reg_step == 1:
                         }, nd_c, auth_df)
 
                         if success:
-                            st.success(f"Success: {msg}")
-                            time.sleep(1)
-                            st.rerun()
+                            d_map, d_list, d_info = assets["device"]
+
+                            d_map[nd_n] = nd_id
+                            d_list = sorted(list(set(d_list + [nd_n])))
+                            d_info[nd_n] = nd_f
+
+                            assets["device"] = (d_map, d_list, d_info)
+                            st.session_state.assets_cache = assets
+
+                            device_msg_box.success(
+                                f"Success: {msg}\n\nThe new device is now available in this session.")
                         else:
-                            st.error(msg)
+                            device_msg_box.error(msg)
                     else:
-                        st.error("Please fill required fields.")
+                        device_msg_box.error("Please fill required fields.")
 
         st.divider()
 
@@ -576,7 +613,7 @@ elif st.session_state.reg_step == 2:
         f_io_v = cio4.selectbox("Vessel", options=assets["vessel"][1], key="f_io_vessel_v3")
         f_io_vc = cio5.selectbox("Vessel Class", VESSEL_CLASS_OPTIONS, key="f_io_vclass_v3")
 
-        with cio6:  # Vessel Registration Popover
+        with cio6:
             with st.popover("➕", key="popover_vessel_v3"):
                 st.markdown("#### Register New Vessel")
                 nv_n = st.text_input("Full Name", key="nv_name_v3")
@@ -584,20 +621,34 @@ elif st.session_state.reg_step == 2:
                 nv_vc = st.selectbox("Vessel Class", VESSEL_CLASS_OPTIONS, key="nv_class_v3")
                 nv_d = st.text_area("Description", key="nv_desc_v3")
                 nv_c = st.text_input("Access Code", type="password", key="nv_code_v3")
+
+                vessel_msg_box = st.empty()
+
                 if st.button("Register Vessel", width='stretch', key="btn_reg_vessel_v3"):
                     if nv_n and nv_a:
                         success, msg = register_cloud_asset("Vessel", {
-                            "Vessel_Name": nv_n, "Abbreviation": nv_a,
-                            "Vessel_classification": nv_vc, "Description": nv_d
+                            "Vessel_Name": nv_n,
+                            "Abbreviation": nv_a,
+                            "Vessel_classification": nv_vc,
+                            "Description": nv_d
                         }, nv_c, auth_df)
+
                         if success:
-                            st.success(f"Success: {msg}");
-                            time.sleep(1);
-                            st.rerun()
+                            v_map, v_list, v_info = assets["vessel"]
+
+                            v_map[nv_n] = nv_a
+                            v_list = sorted(list(set(v_list + [nv_n])))
+                            v_info[nv_n] = nv_d
+
+                            assets["vessel"] = (v_map, v_list, v_info)
+                            st.session_state.assets_cache = assets
+
+                            vessel_msg_box.success(
+                                f"Success: {msg}\n\nThe new vessel is now available in this session.")
                         else:
-                            st.error(msg)
+                            vessel_msg_box.error(msg)
                     else:
-                        st.error("Please fill required fields.")
+                        vessel_msg_box.error("Please fill required fields.")
 
         f_io_e = cio7.checkbox("Ess.", value=True, key="f_io_ess_v3")
 
