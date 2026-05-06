@@ -8,7 +8,7 @@
 Biofoundry Architect is a **web-based platform** for designing, analyzing, and optimizing laboratory automation workflows using a modular framework based on **Robot-Assisted Modules (RAMs)**.
 
 > 🔗 **Access the platform**  
-> [Insert your Streamlit link here]
+> [Link]
 
 ![Platform Overview](docs/overview.png)
 
