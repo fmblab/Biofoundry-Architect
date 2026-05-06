@@ -2,17 +2,17 @@ import streamlit as st
 import base64
 import os
 
-# 페이지 설정
+# Page Configuration
 st.set_page_config(page_title="Concept: RAM & Logic Matching", layout="wide")
 
-# 로컬 이미지를 Base64로 인코딩하는 함수
+# Function to encode local images to Base64
 def get_base64_image(image_path):
     if os.path.exists(image_path):
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     return None
 
-# 제목 및 서두
+# Title and Introduction
 st.title("🧩 What is a Robot Assisted Module (RAM)?")
 st.markdown("""
 **Robot Assisted Module (RAM)** is the fundamental, standardized unit of a biofoundry workflow. 
@@ -20,8 +20,9 @@ Inspired by the modularity of blocks, RAMs are designed as **plug-and-play units
 to rapidly construct and reconfigure diverse automated workflows for synthetic biology and metabolic engineering.
 """)
 
-# --- [이미지 카드 섹션] ---
-img_path = r"C:\Users\Lenovo\Desktop\RAM_Lib\RAM_Library project\assets\RAMconcept.png"
+# --- [Image Card Section] ---
+# Optimized with cross-platform relative paths for local & GitHub deployments
+img_path = os.path.join("assets", "RAMconcept.png")
 img_base64 = get_base64_image(img_path)
 
 if img_base64:
@@ -74,7 +75,7 @@ st.divider()
 # --- Section 2: Logic Matching Mechanism ---
 st.header("2. Logic Matching: Ensuring Procedural Validity")
 st.markdown("""
-To prevent design errors in the "Dry-lab" stage, the platform validates the connectivity between RAMs 
+To prevent design errors in the \"Dry-lab\" stage, the platform validates the connectivity between RAMs 
 using a **Three-Layer Matching** mechanism. This ensures the workflow is both biologically sound and physically executable.
 """)
 
@@ -119,7 +120,7 @@ with tab_vcm:
 
 with tab_data:
     st.markdown("#### Data Exception & Retrospective Selection")
-    # [UPDATED] image_4bb9f7.png의 내용을 반영한 수정 섹션
+    # [UPDATED] Revised section reflecting the content of image_4bb9f7.png
     st.markdown("""
     **The Concept:**
     When a RAM's output classification is *Data*, the standard material-based connectivity constraints (Substance & Vessel) for the next connection are relaxed. Instead of requiring direct physical transfer, subsequent connections are determined based on informational dependency.
@@ -140,7 +141,7 @@ The platform provides a comprehensive **Techno-Economic Assessment (TEA)** for t
 By calculating three core metrics, researchers can evaluate whether a workflow is optimized for the objective.
 """)
 
-# 지표 설명 레이아웃
+# Metrics Explanation Layout
 pa_col1, pa_col2, pa_col3 = st.columns(3)
 
 with pa_col1:
@@ -168,7 +169,7 @@ with pa_col3:
     """)
     st.latex(r"EPI = \sqrt{\frac{TAT}{N} \times \frac{Cost}{N}}")
 
-# 분석 방법론 보강
+# Performance Analysis Methodology Expansion
 st.markdown("---")
 st.markdown("### 📊 How to Analyze Workflow Performance")
 
@@ -189,8 +190,8 @@ with ana_c2:
     * **Design Selection:** Compare different workflow candidates for the same output. The design with the **lower EPI** is objectively more efficient.
     """)
 
-# --- [Go to User Guide Button: 수정된 부분] ---
-# 참고 이미지(image_c49557.png)의 'Back to Tabs' 스타일을 그대로 구현
+# --- [Go to User Guide Button: Revised Section] ---
+# Mimicking the 'Back to Tabs' style of the reference image (image_c49557.png)
 st.markdown(
     """
     <div style="display: flex; justify-content: center; padding: 20px 0;">
