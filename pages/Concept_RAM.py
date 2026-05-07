@@ -21,7 +21,6 @@ to rapidly construct and reconfigure diverse automated workflows for synthetic b
 """)
 
 # --- [Image Card Section] ---
-# Optimized with cross-platform relative paths for local & GitHub deployments
 img_path = os.path.join("assets", "RAMconcept.png")
 img_base64 = get_base64_image(img_path)
 
@@ -50,14 +49,12 @@ else:
 st.divider()
 
 # 1. MIARB Standard
+st.markdown("## 1. Minimum Information About a RAM for Biofoundry workflow (MIARB)")
 st.markdown("""
-    ## 1. Minimum Information About a RAM for Biofoundry workflow (MIARB)
-    """, unsafe_allow_html=True)
-st.markdown("""
-Each RAM follows the **MIARB (Minimum Information About a RAM for Biofoundry workflow)** standard. 
+Each RAM follows the **MIARB (Minimum Information About a RAM for Biofoundry workflow)** standard<sup>[<a href="#ref1" target="_self">1</a>]</sup><sup>[<a href="#ref2" target="_self">2</a>]</sup>. 
 This ensures that every physical laboratory process is transformed into a **standardized digital representation**, 
 allowing for precise simulation and techno-economic evaluation before actual execution.
-""")
+""", unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -120,7 +117,6 @@ with tab_vcm:
 
 with tab_data:
     st.markdown("#### Data Exception & Retrospective Selection")
-    # [UPDATED] Revised section reflecting the content of image_4bb9f7.png
     st.markdown("""
     **The Concept:**
     When a RAM's output classification is *Data*, the standard material-based connectivity constraints (Substance & Vessel) for the next connection are relaxed. Instead of requiring direct physical transfer, subsequent connections are determined based on informational dependency.
@@ -137,9 +133,9 @@ st.divider()
 # 4. Performance Analysis: Techno-Economic Evaluation
 st.header("4. Performance Evaluation: Techno-Economic Analysis")
 st.markdown("""
-The platform provides a comprehensive **Techno-Economic Assessment (TEA)** for the constructed workflow. 
-By calculating three core metrics, researchers can evaluate whether a workflow is optimized for the objective.
-""")
+The platform provides a comprehensive **Techno-Economic Assessment (TEA)** for the constructed workflow<sup>[<a href="#ref2" target="_self">2</a>]</sup>. 
+By calculating three core metrics, researchers can evaluate whether a workflow is optimized for the objective<sup>[<a href="#ref3" target="_self">3</a>]</sup>.
+""", unsafe_allow_html=True)
 
 # Metrics Explanation Layout
 pa_col1, pa_col2, pa_col3 = st.columns(3)
@@ -190,8 +186,7 @@ with ana_c2:
     * **Design Selection:** Compare different workflow candidates for the same output. The design with the **lower EPI** is objectively more efficient.
     """)
 
-# --- [Go to User Guide Button: Revised Section] ---
-# Mimicking the 'Back to Tabs' style of the reference image (image_c49557.png)
+# --- [Go to User Guide Button] ---
 st.markdown(
     """
     <div style="display: flex; justify-content: center; padding: 20px 0;">
@@ -221,20 +216,25 @@ st.markdown(
 st.divider()
 
 # Reference Section
+# Reordered based on 'Order of Appearance' with specific HTML ID anchors
 st.markdown("""
 <div style="font-size: 0.85rem; color: #6b7280; line-height: 1.5;">
     <b>Reference</b><br>
-    1. Woo, H. M., & Keasling, J. D. (2024). 
-    <b>Measuring the economic efficiency of laboratory automation in biotechnology.</b> 
-    <i>Trends in Biotechnology</i>, 42(9), 1076-1080.
-    <a href="https://doi.org/10.1016/j.tibtech.2024.02.001" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.tibtech.2024.02.001</a><br>
-    2. Heo, Y. B., Park, J. S., & Woo, H. M. (2025). 
-    <b>Architectures of emerging biofoundry platforms for synthetic biology.</b> 
-    <i>Current Opinion in Biotechnology</i>, 96, 103379.
-    <a href="https://doi.org/10.1016/j.copbio.2025.103379" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.copbio.2025.103379</a><br>
-    3. Heo, Y. B., Ko, S. C., Keasling, J. D., & Woo, H. M. (2025). 
-    <b>Techno-economic assessment-guided biofoundry for microbial strain development.</b> 
-    <i>Trends in Biotechnology</i>.
-     <a href="https://doi.org/10.1016/j.tibtech.2025.11.002" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.tibtech.2025.11.002</a><br>
+    <div id="ref1" style="padding-top: 5px; margin-bottom: 5px;">
+        1. Heo, Y. B., Park, J. S., & Woo, H. M. (2025). 
+        <b>Architectures of emerging biofoundry platforms for synthetic biology.</b> 
+        <i>Current Opinion in Biotechnology</i>, 96, 103379.
+        <a href="https://doi.org/10.1016/j.copbio.2025.103379" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.copbio.2025.103379</a>
+    <div id="ref2" style="padding-top: 5px; margin-bottom: 5px;">
+        2. Heo, Y. B., Ko, S. C., Keasling, J. D., & Woo, H. M. (2025). 
+        <b>Techno-economic assessment-guided biofoundry for microbial strain development.</b> 
+        <i>Trends in Biotechnology</i>.
+         <a href="https://doi.org/10.1016/j.tibtech.2025.11.002" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.tibtech.2025.11.002</a>
+    <div id="ref3" style="padding-top: 5px; margin-bottom: 5px;">
+        3. Woo, H. M., & Keasling, J. D. (2024). 
+        <b>Measuring the economic efficiency of laboratory automation in biotechnology.</b> 
+        <i>Trends in Biotechnology</i>, 42(9), 1076-1080.
+        <a href="https://doi.org/10.1016/j.tibtech.2024.02.001" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.tibtech.2024.02.001</a>
+    </div>
 </div>
 """, unsafe_allow_html=True)
