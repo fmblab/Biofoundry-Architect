@@ -714,10 +714,12 @@ with tab2:
 
 with tab3:
     st.header("📊 3. Workflow Analytics")
+
+    # Superset citation anchors with title attributes removed
     st.markdown("""
     The **Workflow Analytics** workspace enables researchers to compare performance metrics between multiple finalized workflows stored in the database. 
-    By evaluating **Turnaround Time (TAT)**, **Total Cost (USD)**, and the **Experiment Price Index (EPI)** side-by-side, you can quantitatively evaluate and optimize workflow configurations.
-    """)
+    By evaluating **Turnaround Time (TAT)**, **Total Cost (USD)**, and the **Experiment Price Index (EPI)**<sup>[<a href="#anal-ref1" target="_self">1</a>]</sup> side-by-side, you can quantitatively evaluate and optimize workflow configurations<sup>[<a href="#anal-ref2" target="_self">2</a>, <a href="#anal-ref3" target="_self">3</a>]</sup>.
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("### 🛠️ Step-by-Step Comparative Analytics Guide")
@@ -753,8 +755,8 @@ with tab3:
     Upon selection, the system automatically compiles and plots interactive bar charts comparing three core variables side-by-side:
     * **Turnaround Time (h)**: Total sequence duration spanning operation and hands-on preparation hours.
     * **Total Cost (USD)**: The cumulative total workflow cost combining labor and materials.
-    * **EPI**: The normalized Experiment Price Index assessing overall efficiency per sample.
-    """)
+    * **EPI**: The normalized Experiment Price Index assessing overall efficiency per sample<sup>[<a href="#anal-ref1" target="_self">1</a>]</sup>.
+    """, unsafe_allow_html=True)
 
     st.markdown("#### Step 4: Extracting Strategic Insights")
     st.markdown("""
@@ -793,6 +795,30 @@ with tab3:
     Because manual execution metrics are highly dependent on individual laboratory experience, values can vary significantly. 
     To minimize analytical errors, researchers must input realistic, reasonable manual parameters based on historical laboratory records or published reference values.
     """)
+
+    st.divider()
+
+    # Reference Section for Workflow Analytics (Citation-Sequence Order)
+    st.markdown("""
+    <div style="font-size: 0.85rem; color: #6b7280; line-height: 1.5;">
+        <b>Reference</b><br>
+        <div id="anal-ref1" style="padding-top: 5px; margin-bottom: 5px;">
+            1. Woo, H. M., & Keasling, J. D. (2024). 
+            <b>Measuring the economic efficiency of laboratory automation in biotechnology.</b> 
+            <i>Trends in Biotechnology</i>, 42(9), 1076-1080.
+            <a href="https://doi.org/10.1016/j.tibtech.2024.02.001" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.tibtech.2024.02.001</a>
+        <div id="anal-ref2" style="padding-top: 5px; margin-bottom: 5px;">
+            2. Heo, Y. B., Ko, S. C., Keasling, J. D., & Woo, H. M. (2025). 
+            <b>Techno-economic assessment-guided biofoundry for microbial strain development.</b> 
+            <i>Trends in Biotechnology</i>.
+            <a href="https://doi.org/10.1016/j.tibtech.2025.11.002" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.tibtech.2025.11.002</a>
+        <div id="anal-ref3" style="padding-top: 5px; margin-bottom: 5px;">
+            3. Heo, Y. B., Park, J. S., & Woo, H. M. (2025). 
+            <b>Architectures of emerging biofoundry platforms for synthetic biology.</b> 
+            <i>Current Opinion in Biotechnology</i>, 96, 103379.
+            <a href="https://doi.org/10.1016/j.copbio.2025.103379" target="_blank" style="color: #2563eb; text-decoration: none;">https://doi.org/10.1016/j.copbio.2025.103379</a>      
+    </div>
+    """, unsafe_allow_html=True)
 
     # Scroll up button
     st.markdown(back_to_top_html, unsafe_allow_html=True)

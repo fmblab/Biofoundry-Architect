@@ -51,7 +51,7 @@ st.divider()
 # 1. MIARB Standard
 st.markdown("## 1. Minimum Information About a RAM for Biofoundry workflow (MIARB)")
 st.markdown("""
-Each RAM follows the **MIARB (Minimum Information About a RAM for Biofoundry workflow)** standard<sup>[<a href="#ref1" target="_self">1</a>]</sup><sup>[<a href="#ref2" target="_self">2</a>]</sup>. 
+Each RAM follows the **MIARB (Minimum Information About a RAM for Biofoundry workflow)** standard<sup>[<a href="#ref1" target="_self">1</a>,<a href="#ref2" target="_self">2</a>]</sup>. 
 This ensures that every physical laboratory process is transformed into a **standardized digital representation**, 
 allowing for precise simulation and techno-economic evaluation before actual execution.
 """, unsafe_allow_html=True)

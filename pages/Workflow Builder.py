@@ -98,6 +98,7 @@ def safe_eval_list(val):
         except:
             return []
 
+
 def normalize_io_keys(io_list):
     normalized = []
     for item in io_list:
@@ -111,8 +112,10 @@ def normalize_io_keys(io_list):
 
     return normalized
 
+
 def ram_natural_sort_key(id_series):
     """Generates a natural sorting key for RAM IDs (e.g., A-002 before A-010)"""
+
     def split_id(x):
         s = str(x)
         parts = s.split('-')
@@ -122,6 +125,7 @@ def ram_natural_sort_key(id_series):
             num_part = re.sub(r'\D', '', parts[1])
             num = int(num_part) if num_part else 0
         return (len(prefix), prefix, num)
+
     return id_series.apply(split_id)
 
 
@@ -183,8 +187,8 @@ def refresh_ram_metadata(ram_dict):
         return [
             d for d in io_list
             if isinstance(d, dict)
-            and str(d.get('Type', '')).lower() == io_type.lower()
-            and (d.get('Essential') is True or str(d.get('Essential')).lower() == 'true')
+               and str(d.get('Type', '')).lower() == io_type.lower()
+               and (d.get('Essential') is True or str(d.get('Essential')).lower() == 'true')
         ]
 
     def make_label(essentials):
@@ -231,7 +235,7 @@ def load_vessel_options():
     v_pool = []
     for ws in ["Master_Vessels", "User_Vessels"]:
         try:
-            df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=ws, ttl=0)
+            df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=ws, ttl=180)
             if df is not None and not df.empty:
                 df.columns = df.columns.str.strip()
                 col = next((c for c in df.columns if c.lower().replace("_", " ") == "vessel name"), None)
@@ -239,15 +243,16 @@ def load_vessel_options():
                     v_pool.extend([str(v).strip() for v in df[col].dropna().unique().tolist() if v])
         except:
             continue
-    return sorted(list(set(v_pool))) + ["None"] if v_pool else ["96 PCR plate", "96 Deep-well plate", "1.5mL Tube", "Trough", "None"]
+    return sorted(list(set(v_pool))) + ["None"] if v_pool else ["96 PCR plate", "96 Deep-well plate", "1.5mL Tube",
+                                                                "Trough", "None"]
 
 
 @st.cache_data(ttl=3600)
 def load_combined_db():
     """Loads RAM databases and ensures io_data is strictly treated as a parseable JSON string"""
     try:
-        m_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="RAM_MasterDB", ttl="1h")
-        u_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="RAM_UserDB", ttl="1h")
+        m_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="RAM_MasterDB", ttl=3600)
+        u_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="RAM_UserDB", ttl=3600)
 
         combined = pd.concat(
             [m_db if m_db is not None else pd.DataFrame(), u_db if u_db is not None else pd.DataFrame()],
@@ -287,12 +292,13 @@ def load_combined_db():
         st.error(f"DB Load Failure: {e}")
         return pd.DataFrame()
 
+
 @st.cache_data(ttl=3600)
 def load_workflow_db():
     """Loads and merges Master and User workflows"""
     try:
-        m_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="Workflow_MasterDB", ttl="1h")
-        u_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="Workflow_UserDB", ttl="1h")
+        m_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="Workflow_MasterDB", ttl=3600)
+        u_db = conn.read(spreadsheet=MY_SHEET_URL, worksheet="Workflow_UserDB", ttl=3600)
         if m_db is not None: m_db['DB_Source'] = 'MasterDB'
         if u_db is not None: u_db['DB_Source'] = 'UserDB'
         return pd.concat([m_db, u_db], ignore_index=True).dropna(subset=['Workflow_Name'])
@@ -300,11 +306,10 @@ def load_workflow_db():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def load_auth_df():
-    """Loads the registered access codes and quotas from Google Sheet"""
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet="Access_codelist", ttl=0)
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet="Access_codelist", ttl=60)
         return df
     except:
         return pd.DataFrame(columns=['access_code', 'Max_Workflows', 'Max_RAMs'])
@@ -340,6 +345,8 @@ if 'wf_throughput' not in st.session_state: st.session_state.wf_throughput = 96
 if 'edit_index' not in st.session_state: st.session_state.edit_index = None
 if 'f_m_p_input' not in st.session_state: st.session_state.f_m_p_input = 0.0
 if 'save_success_flag' not in st.session_state: st.session_state.save_success_flag = False
+if 'is_saving_workflow' not in st.session_state: st.session_state.is_saving_workflow = False
+if 'is_saving_ram' not in st.session_state: st.session_state.is_saving_ram = False
 
 # [FIX] Reconstructing session state from Database Load (Important for Source_RAM logic)
 if 'edit_workflow_target' in st.session_state:
@@ -554,93 +561,45 @@ def edit_ram_dialog(index):
             'Total_Time(h)', 'Total_Material_Cost(USD)'
         ]
 
-        if cs1.button("💾 Overwrite Original", width='stretch', type="primary"):
-            # Normalize and securely read stored password to avoid dot-truncation bugs (e.g. 'test.1234')
-            raw_saved_pw = ram.get('access_code', ram.get('Access_Code', ''))
-            raw_pw_str = str(raw_saved_pw).strip() if not pd.isna(raw_saved_pw) else "None"
-            saved_pw = raw_pw_str[:-2] if raw_pw_str.endswith('.0') else raw_pw_str
+        if cs1.button(
+                "💾 Overwrite Original",
+                width='stretch',
+                type="primary",
+                disabled=st.session_state.is_saving_ram,
+                key=f"btn_overwrite_ram_{index}"
+        ):
+            st.session_state.is_saving_ram = True
+            try:
+                # Normalize and securely read stored password to avoid dot-truncation bugs (e.g. 'test.1234')
+                raw_saved_pw = ram.get('access_code', ram.get('Access_Code', ''))
+                raw_pw_str = str(raw_saved_pw).strip() if not pd.isna(raw_saved_pw) else "None"
+                saved_pw = raw_pw_str[:-2] if raw_pw_str.endswith('.0') else raw_pw_str
 
-            if am.is_edit_authorized(e_code, saved_pw):
-                mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key])
-                updated = ram.copy()
-
-                # Standardize access code columns
-                if 'Access_Code' in updated:
-                    updated['access_code'] = updated.pop('Access_Code')
-                if 'access_code' not in updated:
-                    updated['access_code'] = e_code
-
-                # Keep state variables as clean native lists inside memory to prevent double-stringification
-                updated.update({
-                    'RAM_Name': e_name,
-                    'Purpose': e_purpose,
-                    'io_data': st.session_state[io_key],
-                    'material_data': st.session_state[mat_key],
-                    'Sample_Capacity': e_cap,
-                    'Operation_Time(h)': to_float(e_opt),
-                    'Hands_on_Time(h)': to_float(e_hot),
-                    'Total_Material_Cost(USD)': mat_sum,
-                    'Total_RAM_Cost(USD)': mat_sum + (to_float(e_hot) * LABOR_RATE)
-                })
-
-                # Filter and serialize strictly for GSheet connection to block double-escaping
-                clean_row = {k: v for k, v in updated.items() if k in official_columns}
-                clean_io = normalize_io_keys(st.session_state[io_key])
-                clean_row['io_data'] = json.dumps(clean_io)
-                clean_row['material_data'] = json.dumps(st.session_state[mat_key])
-
-                db_ws = "RAM_MasterDB" if e_code == MASTER_CODE else "RAM_UserDB"
-                db = conn.read(spreadsheet=MY_SHEET_URL, worksheet=db_ws, ttl=0)
-
-                # Exclude target row and append clean row safely
-                db = db[db['RAM_ID'] != ram['RAM_ID']]
-                db = pd.concat([db, pd.DataFrame([clean_row])], ignore_index=True)
-
-                # Enforce natural sorting sequence natively
-                db = db.sort_values(by='RAM_ID', key=ram_natural_sort_key).reset_index(drop=True)
-
-                conn.update(spreadsheet=MY_SHEET_URL, worksheet=db_ws, data=db)
-
-                # [API OPTIMIZATION] Invalidate RAM DB cache on save to keep data perfectly in sync
-                load_combined_db.clear()
-
-                st.session_state.workflow[index] = refresh_ram_metadata(updated)
-                st.session_state.edit_index = None
-                st.success("Successfully updated original RAM!")
-                time.sleep(0.5)
-                st.rerun()
-            else:
-                st.error("❌ Access Code Denied.")
-
-        if cs2.button("🌿 Save as New", width='stretch'):
-            if e_code is not None:
-                # [SECURITY & QUOTA CHECK] Validate access code and quota via am module
-                # full_db: existing registered RAMs, e_code: input password, auth_df: authorization ledger
-                can_save, auth_msg = am.check_registration_quota(full_db, e_code, auth_df)
-
-                if not can_save:
-                    st.error(f"❌ {auth_msg}")
-                else:
-                    new_id = generate_next_derivative_id(ram['RAM_ID'])
+                if am.is_edit_authorized(e_code, saved_pw):
                     mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key])
-                    new_ram = ram.copy()
+                    updated = ram.copy()
+
+                    # Standardize access code columns
+                    if 'Access_Code' in updated:
+                        updated['access_code'] = updated.pop('Access_Code')
+                    if 'access_code' not in updated:
+                        updated['access_code'] = e_code
 
                     # Keep state variables as clean native lists inside memory to prevent double-stringification
-                    new_ram.update({
-                        'RAM_ID': new_id,
+                    updated.update({
                         'RAM_Name': e_name,
+                        'Purpose': e_purpose,
                         'io_data': st.session_state[io_key],
                         'material_data': st.session_state[mat_key],
                         'Sample_Capacity': e_cap,
                         'Operation_Time(h)': to_float(e_opt),
                         'Hands_on_Time(h)': to_float(e_hot),
-                        'access_code': e_code,
                         'Total_Material_Cost(USD)': mat_sum,
                         'Total_RAM_Cost(USD)': mat_sum + (to_float(e_hot) * LABOR_RATE)
                     })
 
                     # Filter and serialize strictly for GSheet connection to block double-escaping
-                    clean_row = {k: v for k, v in new_ram.items() if k in official_columns}
+                    clean_row = {k: v for k, v in updated.items() if k in official_columns}
                     clean_io = normalize_io_keys(st.session_state[io_key])
                     clean_row['io_data'] = json.dumps(clean_io)
                     clean_row['material_data'] = json.dumps(st.session_state[mat_key])
@@ -648,8 +607,11 @@ def edit_ram_dialog(index):
                     db_ws = "RAM_MasterDB" if e_code == MASTER_CODE else "RAM_UserDB"
                     db = conn.read(spreadsheet=MY_SHEET_URL, worksheet=db_ws, ttl=0)
 
-                    # Concatenate and sort naturally
+                    # Exclude target row and append clean row safely
+                    db = db[db['RAM_ID'] != ram['RAM_ID']]
                     db = pd.concat([db, pd.DataFrame([clean_row])], ignore_index=True)
+
+                    # Enforce natural sorting sequence natively
                     db = db.sort_values(by='RAM_ID', key=ram_natural_sort_key).reset_index(drop=True)
 
                     conn.update(spreadsheet=MY_SHEET_URL, worksheet=db_ws, data=db)
@@ -657,14 +619,82 @@ def edit_ram_dialog(index):
                     # [API OPTIMIZATION] Invalidate RAM DB cache on save to keep data perfectly in sync
                     load_combined_db.clear()
 
-                    st.session_state.workflow[index] = refresh_ram_metadata(new_ram)
+                    st.session_state.workflow[index] = refresh_ram_metadata(updated)
                     st.session_state.edit_index = None
-                    st.success(f"Successfully saved as derivative: {new_id}! ({auth_msg})")
+                    st.success("Successfully updated original RAM!")
                     time.sleep(0.5)
                     st.rerun()
-            else:
-                st.error("❌ Access Code is required to create a new derivative.")
+                else:
+                    st.error("❌ Access Code Denied.")
 
+            except Exception as e:
+                st.error(f"RAM overwrite failed: {e}")
+            finally:
+                st.session_state.is_saving_ram = False
+        if cs2.button(
+                "🌿 Save as New",
+                width='stretch',
+                disabled=st.session_state.is_saving_ram,
+                key=f"btn_save_new_ram_{index}"
+        ):
+            st.session_state.is_saving_ram = True
+            try:
+                if e_code is not None:
+                    # [SECURITY & QUOTA CHECK] Validate access code and quota via am module
+                    # full_db: existing registered RAMs, e_code: input password, auth_df: authorization ledger
+                    can_save, auth_msg = am.check_registration_quota(full_db, e_code, auth_df)
+
+                    if not can_save:
+                        st.error(f"❌ {auth_msg}")
+                    else:
+                        new_id = generate_next_derivative_id(ram['RAM_ID'])
+                        mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key])
+                        new_ram = ram.copy()
+
+                        # Keep state variables as clean native lists inside memory to prevent double-stringification
+                        new_ram.update({
+                            'RAM_ID': new_id,
+                            'RAM_Name': e_name,
+                            'io_data': st.session_state[io_key],
+                            'material_data': st.session_state[mat_key],
+                            'Sample_Capacity': e_cap,
+                            'Operation_Time(h)': to_float(e_opt),
+                            'Hands_on_Time(h)': to_float(e_hot),
+                            'access_code': e_code,
+                            'Total_Material_Cost(USD)': mat_sum,
+                            'Total_RAM_Cost(USD)': mat_sum + (to_float(e_hot) * LABOR_RATE)
+                        })
+
+                        # Filter and serialize strictly for GSheet connection to block double-escaping
+                        clean_row = {k: v for k, v in new_ram.items() if k in official_columns}
+                        clean_io = normalize_io_keys(st.session_state[io_key])
+                        clean_row['io_data'] = json.dumps(clean_io)
+                        clean_row['material_data'] = json.dumps(st.session_state[mat_key])
+
+                        db_ws = "RAM_MasterDB" if e_code == MASTER_CODE else "RAM_UserDB"
+                        db = conn.read(spreadsheet=MY_SHEET_URL, worksheet=db_ws, ttl=0)
+
+                        # Concatenate and sort naturally
+                        db = pd.concat([db, pd.DataFrame([clean_row])], ignore_index=True)
+                        db = db.sort_values(by='RAM_ID', key=ram_natural_sort_key).reset_index(drop=True)
+
+                        conn.update(spreadsheet=MY_SHEET_URL, worksheet=db_ws, data=db)
+
+                        # [API OPTIMIZATION] Invalidate RAM DB cache on save to keep data perfectly in sync
+                        load_combined_db.clear()
+
+                        st.session_state.workflow[index] = refresh_ram_metadata(new_ram)
+                        st.session_state.edit_index = None
+                        st.success(f"Successfully saved as derivative: {new_id}! ({auth_msg})")
+                        time.sleep(0.5)
+                        st.rerun()
+                else:
+                    st.error("❌ Access Code is required to create a new derivative.")
+
+            except Exception as e:
+                st.error(f"RAM save failed: {e}")
+            finally:
+                st.session_state.is_saving_ram = False
         if cs3.button("✖️ Close", width='stretch'):
             st.session_state.edit_index = None
             st.rerun()
@@ -676,6 +706,7 @@ def edit_ram_dialog(index):
 
 if st.session_state.get('edit_index') is not None:
     edit_ram_dialog(st.session_state.edit_index)
+
 
 # ==========================================
 # 3. Connectivity Engine
@@ -724,9 +755,9 @@ def check_match_info(row, last_step_data):
 
             # Match substance class directly or through Generic wildcard.
             class_match = (
-                o_class == i_class
-                or o_class == 'Generic'
-                or i_class == 'Generic'
+                    o_class == i_class
+                    or o_class == 'Generic'
+                    or i_class == 'Generic'
             )
 
             # Vessel must match directly.
@@ -909,44 +940,65 @@ with st.sidebar:
                             if current_code == stored_code or current_code == MASTER_CODE:
                                 st.warning(f"⚠️ A workflow named '{st.session_state.wf_name}' already exists.")
                                 if st.button("💾 Yes, Overwrite it", width='stretch', type="primary",
-                                             disabled=not all_valid,
+                                             disabled=(not all_valid) or st.session_state.is_saving_workflow,
                                              key="btn_overwrite_wf"):
-                                    # [API OPTIMIZATION] Execute live sheet query ONLY at the single instant the user commits saving
-                                    db_snap = conn.read(spreadsheet=MY_SHEET_URL, worksheet=target_ws, ttl=0)
-                                    final_db = pd.concat([db_snap[db_snap['Workflow_Name'] != st.session_state.wf_name],
-                                                          pd.DataFrame([new_row])], ignore_index=True)
-                                    conn.update(spreadsheet=MY_SHEET_URL, worksheet=target_ws, data=final_db)
+                                    st.session_state.is_saving_workflow = True
+                                    try:
+                                        # [API OPTIMIZATION] Execute live sheet query ONLY at the single instant the user commits saving
+                                        db_snap = conn.read(spreadsheet=MY_SHEET_URL, worksheet=target_ws, ttl=0)
+                                        final_db = pd.concat(
+                                            [db_snap[db_snap['Workflow_Name'] != st.session_state.wf_name],
+                                             pd.DataFrame([new_row])], ignore_index=True)
+                                        conn.update(spreadsheet=MY_SHEET_URL, worksheet=target_ws, data=final_db)
 
-                                    # Clear temporary authentication keys and trigger sync
-                                    st.session_state.save_success_flag = True
-                                    st.session_state.sb_auth_code = ""
-                                    st.session_state.sb_auth_verified = False
+                                        # Clear temporary authentication keys and trigger sync
+                                        st.session_state.save_success_flag = True
+                                        st.session_state.sb_auth_code = ""
+                                        st.session_state.sb_auth_verified = False
 
-                                    # [API OPTIMIZATION] Targeted Cache Clearing to prevent reloading whole databases
-                                    load_workflow_db.clear()
-                                    st.rerun()
+                                        # [API OPTIMIZATION] Targeted Cache Clearing to prevent reloading whole databases
+                                        load_workflow_db.clear()
+                                        st.success("Workflow overwritten successfully.")
+                                        time.sleep(0.5)
+                                        st.rerun()
+
+                                    except Exception as e:
+                                        st.error(f"Overwrite failed: {e}")
+
+                                    finally:
+                                        st.session_state.is_saving_workflow = False
                             else:
                                 st.error("❌ Name conflict: Unauthorized to overwrite.")
                         else:
-                            if st.button("🚀 Save as New Workflow", width='stretch', type="primary",
-                                         disabled=not all_valid,
-                                         key="btn_save_new_wf"):
-                                # [API OPTIMIZATION] Execute live sheet query ONLY at the single instant the user commits saving
-                                db_snap = conn.read(spreadsheet=MY_SHEET_URL, worksheet=target_ws, ttl=0)
-                                final_db = pd.concat([db_snap, pd.DataFrame([new_row])], ignore_index=True)
-                                conn.update(spreadsheet=MY_SHEET_URL, worksheet=target_ws, data=final_db)
+                            if st.button(
+                                    "🚀 Save as New Workflow",
+                                    width="stretch",
+                                    type="primary",
+                                    disabled=(not all_valid) or st.session_state.is_saving_workflow,
+                                    key="btn_save_new_wf"
+                            ):
+                                st.session_state.is_saving_workflow = True
+                                try:
+                                    db_snap = conn.read(spreadsheet=MY_SHEET_URL, worksheet=target_ws, ttl=0)
+                                    final_db = pd.concat([db_snap, pd.DataFrame([new_row])], ignore_index=True)
+                                    conn.update(spreadsheet=MY_SHEET_URL, worksheet=target_ws, data=final_db)
 
-                                # Clear temporary authentication keys and trigger sync
-                                st.session_state.save_success_flag = True
-                                st.session_state.sb_auth_code = ""
-                                st.session_state.sb_auth_verified = False
+                                    st.session_state.save_success_flag = True
+                                    st.session_state.sb_auth_code = ""
+                                    st.session_state.sb_auth_verified = False
+                                    load_workflow_db.clear()
+                                    st.success("Workflow saved successfully.")
+                                    time.sleep(0.5)
+                                    st.rerun()
 
-                                # [API OPTIMIZATION] Targeted Cache Clearing to prevent reloading whole databases
-                                load_workflow_db.clear()
-                                st.rerun()
+                                except Exception as e:
+                                    st.error(f"Save failed: {e}")
+
+                                finally:
+                                    st.session_state.is_saving_workflow = False
 
                 except Exception as e:
-                    st.error(f"Connection Error: {e}")
+                    st.error(f"Save panel error: {e}")
 
             # Render warnings when workflow compatibility checks fail (applies disabled=not all_valid)
             if not all_valid:
