@@ -821,6 +821,12 @@ with st.sidebar:
 
                         if s.get('material_data') and str(s.get('material_data')) != '[]':
                             ram_dict['material_data'] = safe_eval_list(s['material_data'])
+                        if 'op_time' in s:
+                            ram_dict['Operation_Time(h)'] = to_float(s['op_time'])
+                        if 'ho_time' in s:
+                            ram_dict['Hands_on_Time(h)'] = to_float(s['ho_time'])
+                        if 'mat_cost' in s:
+                            ram_dict['Total_Material_Cost(USD)'] = to_float(s['mat_cost'])
 
                         ram_dict = refresh_ram_metadata(ram_dict)
                         reconstructed.append(ram_dict)
