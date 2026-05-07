@@ -117,7 +117,7 @@ with tab0:
 
     st.warning("""
     **⚠️ Default Session Quota (Code-Free Sessions)** Users operating without an Access Code are subject to strict default storage limits:
-    * **Strict limit**: Capped at a maximum of **5 entries** each for RAMs, Workflows, Robots, Devices, and Vessels.
+    * **Strict limit**: Capped at a maximum of **five entries** each for RAMs, Workflows, Robots, Devices, and Vessels.
     * **Data Vulnerability**: Code-free saved entries are unprotected and can be modified or deleted by *any* user, raising the risk of data corruption or loss. 
 
     Obtaining a dedicated Access Code is **strongly recommended** for any non-testing or production use to guarantee dataset isolation.
