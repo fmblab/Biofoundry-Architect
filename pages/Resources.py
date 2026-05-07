@@ -15,7 +15,7 @@ MY_SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
 MASTER_CODE = st.secrets["MASTER_CODE"]
 
 # [SYNCED] Vessel classification options
-VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate", "Flexible vessel"]
+VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate"]
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 

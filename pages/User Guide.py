@@ -716,7 +716,7 @@ with tab3:
     st.header("📊 3. Workflow Analytics")
     st.markdown("""
     The **Workflow Analytics** workspace enables researchers to compare performance metrics between multiple finalized workflows stored in the database. 
-    By evaluating **Turnaround Time (TAT)**, **Total Cost (USD)**, and the **Experimental Price Index (EPI)** side-by-side, you can quantitatively evaluate and optimize workflow configurations.
+    By evaluating **Turnaround Time (TAT)**, **Total Cost (USD)**, and the **Experiment Price Index (EPI)** side-by-side, you can quantitatively evaluate and optimize workflow configurations.
     """)
 
     st.markdown("---")
@@ -753,7 +753,7 @@ with tab3:
     Upon selection, the system automatically compiles and plots interactive bar charts comparing three core variables side-by-side:
     * **Turnaround Time (h)**: Total sequence duration spanning operation and hands-on preparation hours.
     * **Total Cost (USD)**: The cumulative total workflow cost combining labor and materials.
-    * **EPI**: The normalized Experimental Price Index assessing overall efficiency per sample.
+    * **EPI**: The normalized Experiment Price Index assessing overall efficiency per sample.
     """)
 
     st.markdown("#### Step 4: Extracting Strategic Insights")

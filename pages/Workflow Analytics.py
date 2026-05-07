@@ -159,7 +159,7 @@ else:
         i1, i2, i3 = st.columns(3)
         with i1:
             st.success(
-                f"**🏆 Optimal Choice**\n\n**{best_epi['Workflow_Name']}**\n\nLowest Experimental Price Index **({best_epi['EPI']:.2f})**. Ideal balance of speed and budget per unit.")
+                f"**🏆 Optimal Choice**\n\n**{best_epi['Workflow_Name']}**\n\nLowest Experiment Price Index **({best_epi['EPI']:.2f})**. Ideal balance of speed and budget per unit.")
         with i2:
             st.info(
                 f"**⚡ Speed Leader**\n\n**{fastest['Workflow_Name']}**\n\nMinimum Turnaround Time at **{fastest['Turnaround_Time(h)']:.2f} h**. Best for time-sensitive production.")

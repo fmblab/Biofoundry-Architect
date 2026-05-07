@@ -16,7 +16,7 @@ MASTER_CODE = st.secrets["MASTER_CODE"]
 LABOR_RATE = 37.5
 
 MOTION_OPTIONS = ["Colony Picking", "Liquid Transfer", "Labware Transfer"]
-VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate", "Flexible vessel"]
+VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate"]
 SUBSTANCE_CLASSES = ["DNA", "Reaction Mix", "Buffer", "Solvent", "Liquid Medium", "Cells", "Solid Medium (Plate)",
                      "Fraction", "Analyte / Sample", "Data"]
 UNIT_OPTIONS = ["rxn", "ea", "uL", "mL"]

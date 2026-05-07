@@ -514,33 +514,105 @@ with col_detail:
 
         st.divider()
 
-        with st.expander("📝 Edit workflow Metadata"):
+        with st.expander("📝 Edit Workflow Metadata"):
             with st.form(key="edit_meta_form"):
+                new_name = st.text_input("Update Workflow Name", value=row.get('Workflow_Name', ''))
                 new_desc = st.text_area("Update Description", value=row.get('Description', ''))
                 new_output = st.text_input("Update Output Summary", value=row.get('Output_Summary', ''))
                 edit_code = st.text_input("Access Code", type="password")
 
+                conflict_action = st.radio(
+                    "If a workflow with the same name and access code already exists:",
+                    ["Overwrite existing workflow", "Save as new copy"],
+                    horizontal=True
+                )
+
                 if st.form_submit_button("Apply Metadata Changes"):
                     try:
                         t_df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=target_ws, ttl=0)
+                        t_df.columns = t_df.columns.str.strip()
+
+                        if 'access_code' not in t_df.columns:
+                            t_df['access_code'] = ""
+
                         idx_list = t_df.index[t_df['Workflow_Name'] == selected_wf_name].tolist()
-                        if idx_list:
+
+                        if not idx_list:
+                            st.error("Selected workflow was not found in the database.")
+                        else:
                             idx = idx_list[0]
+
                             raw_stored_code = t_df.at[idx, 'access_code']
-                            raw_pw_str = str(raw_stored_code).strip() if not pd.isna(raw_stored_code) else "None"
-                            stored_code = raw_pw_str[:-2] if raw_pw_str.endswith('.0') else raw_pw_str
+                            stored_code = am.normalize_code(raw_stored_code)
 
-                            if am.is_edit_authorized(edit_code, stored_code):
-                                t_df.at[idx, 'Description'], t_df.at[idx, 'Output_Summary'] = new_desc, new_output
+                            if not am.is_edit_authorized(edit_code, stored_code):
+                                st.error("Authorization failed.")
+                            else:
+                                clean_new_name = str(new_name).strip()
+
+                                if clean_new_name == "":
+                                    st.error("Workflow name cannot be empty.")
+                                    st.stop()
+
+                                # Detect workflow with same name and same access code, excluding current row
+                                normalized_codes = t_df['access_code'].apply(am.normalize_code)
+                                conflict_mask = (
+                                        (t_df['Workflow_Name'].astype(str).str.strip() == clean_new_name)
+                                        & (normalized_codes == stored_code)
+                                        & (t_df.index != idx)
+                                )
+                                conflict_indices = t_df.index[conflict_mask].tolist()
+
+                                updated_row = t_df.loc[idx].copy()
+                                updated_row['Workflow_Name'] = clean_new_name
+                                updated_row['Description'] = new_desc
+                                updated_row['Output_Summary'] = new_output
+
+                                if conflict_indices:
+                                    if conflict_action == "Overwrite existing workflow":
+                                        target_idx = conflict_indices[0]
+
+                                        # Replace the existing conflicting workflow with the edited record
+                                        for col in t_df.columns:
+                                            if col in updated_row.index:
+                                                t_df.at[target_idx, col] = updated_row[col]
+
+                                        # Remove the original row if it is different from the overwritten row
+                                        t_df = t_df.drop(index=idx).reset_index(drop=True)
+
+                                        st.success(
+                                            f"Existing workflow '{clean_new_name}' was overwritten successfully.")
+
+                                    else:
+                                        # Save as a new copy with an automatically generated unique name
+                                        base_name = clean_new_name
+                                        suffix = 1
+                                        existing_names = set(t_df['Workflow_Name'].astype(str).str.strip())
+
+                                        copy_name = f"{base_name} copy"
+                                        while copy_name in existing_names:
+                                            suffix += 1
+                                            copy_name = f"{base_name} copy {suffix}"
+
+                                        updated_row['Workflow_Name'] = copy_name
+                                        t_df = pd.concat([t_df, pd.DataFrame([updated_row])], ignore_index=True)
+
+                                        st.success(f"Workflow saved as new copy: '{copy_name}'.")
+
+                                else:
+                                    # No conflict: update current workflow metadata directly
+                                    t_df.at[idx, 'Workflow_Name'] = clean_new_name
+                                    t_df.at[idx, 'Description'] = new_desc
+                                    t_df.at[idx, 'Output_Summary'] = new_output
+
+                                    st.success("Workflow metadata updated successfully.")
+
                                 conn.update(spreadsheet=MY_SHEET_URL, worksheet=target_ws, data=t_df)
-                                st.success("Metadata updated successfully!")
 
-                                # [API OPTIMIZATION] Target clearing for workflow DB only to prevent heavy reloads
                                 load_workflow_db.clear()
                                 time.sleep(1)
                                 st.rerun()
-                            else:
-                                st.error("Authorization failed.")
+
                     except Exception as e:
                         st.error(f"Update failed: {e}")
 

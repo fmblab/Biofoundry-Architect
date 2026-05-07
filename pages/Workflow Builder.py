@@ -991,7 +991,7 @@ if st.session_state.workflow:
     m1.metric("Steps", len(st.session_state.workflow))
     m2.metric("Turnaround Time (h)", f"{live_tat:.2f}")
     m3.metric("Total Cost (USD)", f"{live_cost:,.2f}")
-    m4.metric("EPI (Experimental Price Index) (-)", f"{live_epi:.2f}")
+    m4.metric("EPI (Experiment Price Index) (-)", f"{live_epi:.2f}")
 
 st.divider()
 t1, t2, t3 = st.tabs(["🛠️ Builder", "📊 Breakdown", "📦 Materials"])
