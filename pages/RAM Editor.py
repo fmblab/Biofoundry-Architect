@@ -48,6 +48,31 @@ def to_float(val):
     except:
         return 0.0
 
+def ram_id_sort_key(ram_id):
+    s = str(ram_id).strip().upper()
+    m = re.match(r"^([A-Z]+)(?:-(\d+))?$", s)
+
+    if not m:
+        return (s, 10**9)
+
+    prefix = m.group(1)
+    num = int(m.group(2)) if m.group(2) else 0
+    return (prefix, num)
+
+
+def sort_ram_db(df):
+    if df is None or df.empty or "RAM_ID" not in df.columns:
+        return df
+
+    df = df.copy()
+    df["_ram_sort_key"] = df["RAM_ID"].apply(ram_id_sort_key)
+    df = (
+        df.sort_values("_ram_sort_key")
+        .drop(columns="_ram_sort_key")
+        .reset_index(drop=True)
+    )
+    return df
+
 
 def apply_calc_to_edit_callback(val):
     st.session_state.f_m_p_input = val
@@ -77,10 +102,10 @@ def get_asset_sheet_data(worksheet_name):
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_db_sheet_data(worksheet_name):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl="10m")
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['RAM_ID'])
 
@@ -152,23 +177,30 @@ if not st.session_state.get('edit_target'):
 
 if "f_m_p_input" not in st.session_state: st.session_state.f_m_p_input = 0.0
 
-target_id = st.session_state.edit_target
+target_id = str(st.session_state.edit_target).strip().upper()
+st.session_state.edit_target = target_id
+
 assets = load_all_assets_optimized()
 
 with st.spinner("Syncing latest data from Cloud..."):
+    get_db_sheet_data.clear()
     m_db = get_db_sheet_data("RAM_MasterDB")
     u_db = get_db_sheet_data("RAM_UserDB")
 
-    if 'RAM_ID' in m_db.columns:
-        is_master = target_id in m_db['RAM_ID'].values
+    for df in [m_db, u_db]:
+        if not df.empty and "RAM_ID" in df.columns:
+            df["RAM_ID"] = df["RAM_ID"].astype(str).str.strip().str.upper()
+
+    if "RAM_ID" in m_db.columns:
+        is_master = target_id in m_db["RAM_ID"].values
     else:
         is_master = False
 
     full_db = pd.concat([m_db, u_db], ignore_index=True)
     source_worksheet = "RAM_MasterDB" if is_master else "RAM_UserDB"
 
-    if not full_db.empty and 'RAM_ID' in full_db.columns:
-        target_row_df = full_db[full_db['RAM_ID'] == target_id]
+    if not full_db.empty and "RAM_ID" in full_db.columns:
+        target_row_df = full_db[full_db["RAM_ID"] == target_id]
     else:
         target_row_df = pd.DataFrame()
 
@@ -417,7 +449,7 @@ with st.container(border=True):
                     final_save_df = pd.concat([latest_db, pd.DataFrame([updated_dict])],
                                               ignore_index=True) if not latest_db.empty else pd.DataFrame(
                         [updated_dict])
-                    final_save_df = final_save_df.sort_values(by='RAM_ID').reset_index(drop=True)
+                    final_save_df = sort_ram_db(final_save_df)
 
                     conn.update(spreadsheet=MY_SHEET_URL, worksheet=source_worksheet, data=final_save_df)
                     get_db_sheet_data.clear()
