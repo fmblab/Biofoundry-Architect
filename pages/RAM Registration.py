@@ -125,7 +125,30 @@ def to_float(val):
         return float(str(val).strip())
     except:
         return 0.0
+def ram_id_sort_key(ram_id):
+    s = str(ram_id).strip().upper()
+    m = re.match(r"^([A-Z]+)(?:-(\d+))?$", s)
 
+    if not m:
+        return (s, 10**9)
+
+    prefix = m.group(1)
+    num = int(m.group(2)) if m.group(2) else 0
+    return (prefix, num)
+
+
+def sort_ram_db(df):
+    if df is None or df.empty or "RAM_ID" not in df.columns:
+        return df
+
+    df = df.copy()
+    df["_ram_sort_key"] = df["RAM_ID"].apply(ram_id_sort_key)
+    df = (
+        df.sort_values("_ram_sort_key")
+        .drop(columns="_ram_sort_key")
+        .reset_index(drop=True)
+    )
+    return df
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_asset_sheet_data(worksheet_name, ttl=READ_TTL_LONG):
@@ -878,8 +901,16 @@ elif st.session_state.reg_step == 3:
                     db_now = pd.DataFrame([final_row])
                 else:
                     # Merge after excluding existing RAM_ID row to overwrite if it exists
-                    db_now = pd.concat([db_now[db_now['RAM_ID'] != st.session_state.reg_id], pd.DataFrame([final_row])],
-                                       ignore_index=True)
+                    db_now = pd.concat(
+                        [
+                            db_now[db_now["RAM_ID"].astype(str).str.strip() != str(st.session_state.reg_id).strip()],
+                            pd.DataFrame([final_row])
+                        ],
+                        ignore_index=True
+                    )
+
+                # Sort RAM database by RAM_ID before saving
+                db_now = sort_ram_db(db_now)
 
                 # 4. [Cloud Update and State Reflection]
                 conn.update(spreadsheet=MY_SHEET_URL, worksheet=target_ws, data=db_now)
