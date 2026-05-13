@@ -423,8 +423,20 @@ if st.session_state.reg_step == 1:
 
         # Hardware Configuration Section
         st.markdown("### Hardware Configuration")
-        st.session_state.reg_acts = st.pills("Process Action", MOTION_OPTIONS, selection_mode="multi",
-                                             default=st.session_state.reg_acts)
+        st.pills(
+            "Required Action Type",
+            MOTION_OPTIONS,
+            selection_mode="multi",
+            key="reg_acts"
+        )
+
+        if not st.session_state.reg_acts:
+            st.info("Select all Action Types required for that RAM.", icon="ℹ️")
+        else:
+            for act in st.session_state.reg_acts:
+                guide_msg = ACTION_ROBOT_GUIDE.get(act)
+                if guide_msg:
+                    st.info(guide_msg, icon="ℹ️")
 
         # [Restore] Robot selection and new registration
         col_r1, col_r2 = st.columns([0.85, 0.15], vertical_alignment="bottom")
