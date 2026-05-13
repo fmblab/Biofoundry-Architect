@@ -98,7 +98,7 @@ def add_edit_material_callback():
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_asset_sheet_data(worksheet_name):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl="10m")
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=600)
         if df is None or df.empty:
             return pd.DataFrame()
         df.columns = [c.strip() for c in df.columns]
@@ -110,7 +110,7 @@ def get_asset_sheet_data(worksheet_name):
 @st.cache_data(ttl=60, show_spinner=False)
 def get_db_sheet_data(worksheet_name):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=0)
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=30)
         if df is None or df.empty:
             return pd.DataFrame(columns=['RAM_ID'])
 
