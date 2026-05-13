@@ -16,6 +16,11 @@ MASTER_CODE = st.secrets["MASTER_CODE"]
 LABOR_RATE = 37.5
 
 MOTION_OPTIONS = ["Colony Picking", "Liquid Transfer", "Labware Transfer"]
+ACTION_ROBOT_GUIDE = {
+    "Colony Picking": "LiHa is recommended for this action.",
+    "Liquid Transfer": "LiHa or MCA are recommended for this action.",
+    "Labware Transfer": "RoMa is recommended for this action."
+}
 VESSEL_CLASS_OPTIONS = ["Microplate", "Digital data", "Tube", "Trough", "Agar plate"]
 SUBSTANCE_CLASSES = ["DNA", "Reaction Mix", "Buffer", "Solvent", "Liquid Medium", "Cells", "Solid Medium (Plate)",
                      "Fraction", "Analyte / Sample", "Data"]
@@ -91,10 +96,10 @@ def add_edit_material_callback():
         st.session_state.f_m_n = ""
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_asset_sheet_data(worksheet_name):
+@st.cache_data(ttl=60, show_spinner=False)
+def get_db_sheet_data(worksheet_name):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl="10m")
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=0)
         if df is None or df.empty: return pd.DataFrame()
         df.columns = [c.strip() for c in df.columns]
         return df
@@ -184,6 +189,7 @@ assets = load_all_assets_optimized()
 
 with st.spinner("Syncing latest data from Cloud..."):
     get_db_sheet_data.clear()
+
     m_db = get_db_sheet_data("RAM_MasterDB")
     u_db = get_db_sheet_data("RAM_UserDB")
 
@@ -216,6 +222,7 @@ if st.session_state.get('current_loaded_id') != target_id:
     st.session_state.edit_cap = int(to_float(r_data.get('Sample_Capacity', 96)))
     st.session_state.edit_opt = str(r_data.get('Operation_Time(h)', "0.0"))
     st.session_state.edit_hot = str(r_data.get('Hands_on_Time(h)', "0.0"))
+    st.session_state.edit_acts = smart_parse(r_data.get('Process_Action', ''), {})
     st.session_state.current_loaded_id = target_id
 
 # ==========================================
@@ -311,9 +318,20 @@ if new_pre != old_pre:
     st.warning(f"⚠️ ID will be updated to {final_id}")
 
 st.markdown("### Hardware Setup")
-with st.container(border=True):
-    new_acts = st.pills("Process Action", MOTION_OPTIONS, default=smart_parse(r_data.get('Process_Action', ''), {}),
-                        selection_mode="multi")
+st.pills(
+    "Required Action Type",
+    MOTION_OPTIONS,
+    selection_mode="multi",
+    key="edit_acts"
+)
+
+if not st.session_state.edit_acts:
+    st.info("Select all Action Types required for that RAM.", icon="ℹ️")
+else:
+    for act in st.session_state.edit_acts:
+        guide_msg = ACTION_ROBOT_GUIDE.get(act)
+        if guide_msg:
+            st.info(guide_msg, icon="ℹ️")
     ch1, ch2 = st.columns(2)
     new_rbts = ch1.multiselect(
         "Robots",
@@ -433,7 +451,7 @@ with st.container(border=True):
                     # Unified standard column names
                     updated_dict.update({
                         'RAM_ID': final_id, 'Base_Root': new_pre, 'RAM_Name': new_name,
-                        'Process_Action': str(list(new_acts)),
+                        'Process_Action': str(list(st.session_state.edit_acts)),
                         'Robot': str([assets["robot"][0][n] for n in new_rbts]),
                         'Functional_Device': str([assets["device"][0][n] for n in new_dvcs]),
                         'Purpose': new_purp, 'Sample_Capacity': st.session_state.edit_cap,
