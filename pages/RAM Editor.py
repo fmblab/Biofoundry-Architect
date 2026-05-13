@@ -95,12 +95,12 @@ def add_edit_material_callback():
         st.session_state.f_m_p_input = 0.0
         st.session_state.f_m_n = ""
 
-
-@st.cache_data(ttl=60, show_spinner=False)
-def get_db_sheet_data(worksheet_name):
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_asset_sheet_data(worksheet_name):
     try:
-        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl=0)
-        if df is None or df.empty: return pd.DataFrame()
+        df = conn.read(spreadsheet=MY_SHEET_URL, worksheet=worksheet_name, ttl="10m")
+        if df is None or df.empty:
+            return pd.DataFrame()
         df.columns = [c.strip() for c in df.columns]
         return df
     except:
