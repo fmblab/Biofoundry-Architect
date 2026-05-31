@@ -189,7 +189,7 @@ To run the application independently, users must configure their own Google Shee
 This repository accompanies the manuscript:
 
 *Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and techno-economic evaluation*  
-Submitted to *Bioinformatics* (Application Note)
+Submitted to *ACS Synthetic Biology* (Technical Note)
 
 Supplementary materials include:
 - Ontology-based RAM representation  
