@@ -1,5 +1,5 @@
 # Biofoundry Architect  
-*A web-based platform for RAM-driven workflow design, comparative analytics, and techno-economic simulation*
+*A robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation*
 
 ---
 
