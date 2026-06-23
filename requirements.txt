@@ -1,6 +1,6 @@
 streamlit==1.55.0
 pandas==2.3.3
 plotly==6.7.0
-st-gsheets-connection
-gspread
-xlsxwriter
+st-gsheets-connection==0.1.0
+gspread==5.12.4
+xlsxwriter==3.2.9
