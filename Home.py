@@ -118,7 +118,7 @@ def show_intro():
     st.markdown("""
 <div class='main-content'>
     <div class='h-title'>Biofoundry Architect 1.0</div>
-    <div class='h-sub'>A robot-assisted module configurator and workflow designer with hub interoperability and techno-economic evaluation</div>
+    <div class='h-sub'>A robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
     <div class='h-affil'>SKy Biofoundry, Sungkyunkwan University (SKKU), Rep. of Korea</div>
     <div class='h-hr'></div>
     <div class='h-img-header'>Architect & Optimize your lab automation</div>
