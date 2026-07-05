@@ -22,6 +22,14 @@ UNIT_OPTIONS = ["rxn", "ea", "uL", "mL"]
 VESSEL_CLASS_OPTIONS = ["Microplate", "Tube", "Trough", "Agar plate", "Digital data"]
 SUBSTANCE_CLASSES = ["DNA", "Reaction Mix", "Buffer", "Solvent", "Liquid Medium", "Cells", "Analyte / Sample",
                      "Generic", "Data"]
+WORKFLOW_CATEGORY_OPTIONS = [
+    "Genetic construct preparation",
+    "Host strain engineering",
+    "Screening",
+    "Analytical measurement",
+    "Culture and bioprocessing",
+    "Other"
+]
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -63,7 +71,46 @@ def to_float(val):
         return float(str(val).replace(',', '').strip())
     except:
         return 0.0
+def calculate_success_rate(successful_samples, total_samples):
+    """
+    Calculate workflow-level empirical success rate for aEPI.
+    This is based on final workflow samples, not RAM-level failure propagation.
+    """
+    successful = to_float(successful_samples)
+    total = to_float(total_samples)
 
+    if total <= 0:
+        return None
+
+    if successful < 0 or successful > total:
+        return None
+
+    return successful / total
+
+
+def calculate_aepi(epi, success_rate):
+    """
+    Calculate adjusted EPI (aEPI).
+    aEPI = EPI / empirical success rate
+    """
+    epi = to_float(epi)
+
+    if success_rate is None or success_rate <= 0:
+        return None
+
+    return epi / success_rate
+
+
+def get_final_validation_ram_label():
+    """
+    For aEPI calculation, the final validation RAM is automatically assigned
+    as the last RAM in the workflow sequence.
+    """
+    if not st.session_state.get("workflow"):
+        return ""
+
+    last_ram = st.session_state.workflow[-1]
+    return f"{last_ram.get('RAM_ID', '')} - {last_ram.get('RAM_Name', '')}"
 
 def safe_eval_list(val):
     """Safely parse list-like or JSON strings into python objects"""
@@ -341,12 +388,24 @@ if 'wf_name' not in st.session_state: st.session_state.wf_name = f"WF_{datetime.
 if 'wf_author' not in st.session_state: st.session_state.wf_author = "Researcher"
 if 'wf_desc' not in st.session_state: st.session_state.wf_desc = ""
 if 'wf_output' not in st.session_state: st.session_state.wf_output = ""
+if 'wf_category' not in st.session_state: st.session_state.wf_category = "Other"
 if 'wf_throughput' not in st.session_state: st.session_state.wf_throughput = 96
+if 'wf_successful_samples' not in st.session_state: st.session_state.wf_successful_samples = 96
+if 'wf_total_samples' not in st.session_state: st.session_state.wf_total_samples = 96
+if 'use_aepi' not in st.session_state: st.session_state.use_aepi = False
 if 'edit_index' not in st.session_state: st.session_state.edit_index = None
 if 'f_m_p_input' not in st.session_state: st.session_state.f_m_p_input = 0.0
 if 'save_success_flag' not in st.session_state: st.session_state.save_success_flag = False
 if 'is_saving_workflow' not in st.session_state: st.session_state.is_saving_workflow = False
 if 'is_saving_ram' not in st.session_state: st.session_state.is_saving_ram = False
+
+def reset_workflow_builder_state():
+    """Reset current workflow and optional aEPI inputs."""
+    st.session_state.workflow = []
+    st.session_state.wf_successful_samples = 96
+    st.session_state.wf_total_samples = 96
+    st.session_state.use_aepi = False
+    st.session_state.save_success_flag = False
 
 # [FIX] Reconstructing session state from Database Load (Important for Source_RAM logic)
 if 'edit_workflow_target' in st.session_state:
@@ -355,7 +414,18 @@ if 'edit_workflow_target' in st.session_state:
     st.session_state.wf_author = target.get('Author', st.session_state.wf_author)
     st.session_state.wf_desc = target.get('Description', "")
     st.session_state.wf_output = target.get('Output_Summary', "")
+    st.session_state.wf_category = target.get('Workflow_Category', "Other")
+    if st.session_state.wf_category not in WORKFLOW_CATEGORY_OPTIONS:
+        st.session_state.wf_category = "Other"
     st.session_state.wf_throughput = int(target.get('Number_of_Samples(Throughput)', 96))
+    loaded_aepi = str(target.get('aEPI', "")).strip()
+    st.session_state.use_aepi = loaded_aepi not in ["", "nan", "NaN", "None"]
+    if st.session_state.use_aepi:
+        st.session_state.wf_successful_samples = int(to_float(target.get('Successful_Samples', 96)))
+        st.session_state.wf_total_samples = int(to_float(target.get('Total_Samples', 96)))
+    else:
+        st.session_state.wf_successful_samples = 96
+        st.session_state.wf_total_samples = 96
     try:
         reconstructed, steps = [], safe_eval_list(target.get('Steps_RAMList', '[]'))
         for s in steps:
@@ -807,7 +877,18 @@ with st.sidebar:
                 st.session_state.wf_author = target.get('Author', "")
                 st.session_state.wf_desc = target.get('Description', "")
                 st.session_state.wf_output = target.get('Output_Summary', "")
+                st.session_state.wf_category = target.get('Workflow_Category', "Other")
+                if st.session_state.wf_category not in WORKFLOW_CATEGORY_OPTIONS:
+                    st.session_state.wf_category = "Other"
                 st.session_state.wf_throughput = int(target.get('Number_of_Samples(Throughput)', 96))
+                loaded_aepi = str(target.get('aEPI', "")).strip()
+                st.session_state.use_aepi = loaded_aepi not in ["", "nan", "NaN", "None"]
+                if st.session_state.use_aepi:
+                    st.session_state.wf_successful_samples = int(to_float(target.get('Successful_Samples', 96)))
+                    st.session_state.wf_total_samples = int(to_float(target.get('Total_Samples', 96)))
+                else:
+                    st.session_state.wf_successful_samples = 96
+                    st.session_state.wf_total_samples = 96
 
                 reconstructed = []
                 steps = safe_eval_list(target.get('Steps_RAMList', '[]'))
@@ -842,9 +923,81 @@ with st.sidebar:
     st.session_state.wf_desc = st.text_area("Description", value=st.session_state.wf_desc)
     st.session_state.wf_output = st.text_input("Output Summary", value=st.session_state.wf_output)
 
+    current_category = st.session_state.wf_category
+    if current_category not in WORKFLOW_CATEGORY_OPTIONS:
+        current_category = "Other"
+    st.session_state.wf_category = st.selectbox(
+        "Workflow Category",
+        WORKFLOW_CATEGORY_OPTIONS,
+        index=WORKFLOW_CATEGORY_OPTIONS.index(current_category),
+        help="Select the broad experimental purpose of this workflow for category-restricted benchmarking."
+    )
+
     # Throughput configuration (Enforces multiples of 96-well format)
     st.number_input("Throughput", min_value=96, step=96, value=st.session_state.wf_throughput, key="wf_tp_input")
     st.session_state.wf_throughput = (st.session_state.wf_tp_input // 96) * 96
+    st.markdown("#### 🧪 aEPI Settings")
+    st.info(
+        "**aEPI = EPI / empirical success rate.**\n\n"
+        "Use this option only when empirical success-rate data are available. "
+        "If all final samples were successful, set Successful samples equal to Total samples."
+    )
+
+    st.checkbox(
+        "Include empirical success rate for aEPI",
+        key="use_aepi",
+        help=(
+            "If unchecked, Successful_Samples, Total_Samples, Empirical_Success_Rate, "
+            "Final_Validation_RAM, and aEPI will be saved as blank values."
+        )
+    )
+
+    final_validation_ram_sidebar = get_final_validation_ram_label()
+
+    if st.session_state.use_aepi:
+        if final_validation_ram_sidebar:
+            st.text_input(
+                "Final Validation RAM",
+                value=final_validation_ram_sidebar,
+                disabled=True,
+                help=(
+                    "For aEPI calculation, the success-assessment RAM must be the final RAM "
+                    "in the workflow. This field is automatically assigned from the last RAM."
+                )
+            )
+        else:
+            st.caption("Add workflow steps to define the final validation RAM.")
+
+        st.number_input(
+            "Successful samples",
+            min_value=0,
+            step=1,
+            key="wf_successful_samples",
+            help="Number of final workflow samples that were successful."
+        )
+
+        st.number_input(
+            "Total samples",
+            min_value=96,
+            step=96,
+            key="wf_total_samples",
+            help=(
+                "Total number of samples evaluated at the final validation RAM. "
+                "This is used as the denominator for empirical success rate."
+            )
+        )
+
+        sidebar_success_rate = calculate_success_rate(
+            st.session_state.wf_successful_samples,
+            st.session_state.wf_total_samples
+        )
+
+        if sidebar_success_rate is not None:
+            st.info(f"Empirical success rate: **{sidebar_success_rate * 100:.2f}%**")
+        elif st.session_state.wf_total_samples > 0:
+            st.warning("Successful samples cannot exceed total samples.")
+    else:
+        st.caption("aEPI will not be calculated or saved for this workflow.")
 
     st.divider()
 
@@ -857,10 +1010,11 @@ with st.sidebar:
         if c_nav1.button("📂 Go to DB", width='stretch'):
             st.session_state.save_success_flag = False
             st.switch_page("pages/Workflow Database.py")
-        if c_nav2.button("🔄 Reset", width='stretch'):
-            st.session_state.workflow = []
-            st.session_state.save_success_flag = False
-            st.rerun()
+        c_nav2.button(
+            "🔄 Reset",
+            width='stretch',
+            on_click=reset_workflow_builder_state
+        )
     else:
         with st.popover("📥 Save to WorkflowDB", width='stretch'):
             with st.form("save_auth_form"):
@@ -905,11 +1059,29 @@ with st.sidebar:
                         lab_c = wf_df_tmp['Hands_on_Time(h)'].sum() * LABOR_RATE
                         tp = st.session_state.wf_throughput
 
+                        epi_value = round(
+                            math.sqrt(max(0.0, (tat / tp) * ((mat_c + lab_c) / tp))),
+                            2
+                        ) if tp > 0 else 0
+
+                        if st.session_state.use_aepi:
+                            success_rate = calculate_success_rate(
+                                st.session_state.wf_successful_samples,
+                                st.session_state.wf_total_samples
+                            )
+                            aepi_value = calculate_aepi(epi_value, success_rate)
+                            final_validation_ram = get_final_validation_ram_label()
+                        else:
+                            success_rate = None
+                            aepi_value = None
+                            final_validation_ram = ""
+
                         new_row = {
                             "Workflow_Name": st.session_state.wf_name,
                             "Author": st.session_state.wf_author,
                             "Description": st.session_state.wf_desc,
                             "Output_Summary": st.session_state.wf_output,
+                            "Workflow_Category": st.session_state.wf_category,
                             "Number_of_Samples(Throughput)": tp,
                             "Steps_RAMList": json.dumps([{
                                 "step": i + 1,
@@ -933,7 +1105,12 @@ with st.sidebar:
                             "Material_Cost(USD)": mat_c,
                             "Labor_Cost(USD)": lab_c,
                             "Total_Cost(USD)": mat_c + lab_c,
-                            "EPI": round(math.sqrt(max(0.0, (tat / tp) * ((mat_c + lab_c) / tp))), 2) if tp > 0 else 0,
+                            "EPI": epi_value,
+                            "Successful_Samples": st.session_state.wf_successful_samples if st.session_state.use_aepi else "",
+                            "Total_Samples": st.session_state.wf_total_samples if st.session_state.use_aepi else "",
+                            "Empirical_Success_Rate": round(success_rate, 4) if success_rate is not None else "",
+                            "Final_Validation_RAM": final_validation_ram,
+                            "aEPI": round(aepi_value, 2) if aepi_value is not None else "",
                             "access_code": current_code
                         }
 
@@ -1045,11 +1222,22 @@ if st.session_state.workflow:
     live_epi = math.sqrt(max(0.0, (live_tat / live_tp) * (live_cost / live_tp))) if live_tp > 0 else 0.0
 
     # Display real-time KPI metrics dashboard
-    m1, m2, m3, m4 = st.columns(4)
+    if st.session_state.use_aepi:
+        live_success_rate = calculate_success_rate(
+            st.session_state.wf_successful_samples,
+            st.session_state.wf_total_samples
+        )
+        live_aepi = calculate_aepi(live_epi, live_success_rate)
+    else:
+        live_success_rate = None
+        live_aepi = None
+
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Steps", len(st.session_state.workflow))
     m2.metric("Turnaround Time (h)", f"{live_tat:.2f}")
     m3.metric("Total Cost (USD)", f"{live_cost:,.2f}")
-    m4.metric("EPI (Experiment Price Index) (-)", f"{live_epi:.2f}")
+    m4.metric("EPI (-)", f"{live_epi:.2f}")
+    m5.metric("aEPI (-)", f"{live_aepi:.2f}" if live_aepi is not None else "N/A")
 
 st.divider()
 t1, t2, t3 = st.tabs(["🛠️ Builder", "📊 Breakdown", "📦 Materials"])
@@ -1108,9 +1296,12 @@ with t1:
                 st.session_state.workflow.append(full_db[full_db['display'] == selected].iloc[0].to_dict())
                 st.rerun()
 
-        if sc3.button("🗑️ Reset", width='stretch', key="reset_btn_main"):
-            st.session_state.workflow = []
-            st.rerun()
+        sc3.button(
+            "🗑️ Reset",
+            width='stretch',
+            key="reset_btn_main",
+            on_click=reset_workflow_builder_state
+        )
 
         # Display sequence validation errors prominently
         if not all_valid:
