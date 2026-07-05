@@ -17,6 +17,14 @@ pd.set_option('future.no_silent_downcasting', True)
 MY_SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
 MASTER_CODE = st.secrets["MASTER_CODE"]
 LABOR_RATE = 37.5
+WORKFLOW_CATEGORY_OPTIONS = [
+    "Genetic construct preparation",
+    "Host strain engineering",
+    "Screening",
+    "Analytical measurement",
+    "Culture and bioprocessing",
+    "Other"
+]
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -38,15 +46,30 @@ back_to_top_html = """
 
 def safe_eval_list(val):
     """Safely parse list-like or JSON strings into python objects"""
-    if not val or pd.isna(val) or str(val).strip() in ["", "[]", "nan", "NaN", "None"]:
-        return []
     if isinstance(val, (list, dict)):
         return val
+
+    if val is None:
+        return []
+
+    if isinstance(val, float) and math.isnan(val):
+        return []
+
     try:
-        return json.loads(str(val).replace("'", '"'))
+        if pd.isna(val):
+            return []
+    except ValueError:
+        return []
+
+    val_str = str(val).strip()
+    if val_str in ["", "[]", "nan", "NaN", "None"]:
+        return []
+
+    try:
+        return json.loads(val_str.replace("'", '"'))
     except:
         try:
-            return ast.literal_eval(str(val))
+            return ast.literal_eval(val_str)
         except:
             return []
 
@@ -59,6 +82,11 @@ def to_float(val):
         return float(str(val).replace(',', '').strip())
     except:
         return 0.0
+
+
+def has_value(val):
+    """Return True when a spreadsheet cell contains a meaningful stored value."""
+    return str(val).strip() not in ["", "nan", "NaN", "None"]
 
 
 def ram_natural_sort_key(id_series):
@@ -114,8 +142,19 @@ def load_workflow_db():
         combined = pd.concat([m_db, u_db], ignore_index=True).dropna(subset=['Workflow_Name'])
         combined.columns = combined.columns.str.strip()
 
+        if 'Workflow_Category' not in combined.columns:
+            combined['Workflow_Category'] = "Other"
+        combined['Workflow_Category'] = (
+            combined['Workflow_Category']
+            .fillna("Other")
+            .astype(str)
+            .str.strip()
+            .replace(["", "nan", "NaN", "None", "Uncategorized"], "Other")
+        )
+
         num_cols = ['Turnaround_Time(h)', 'Operation_Time(h)', 'Hands_on_Time(h)', 'Material_Cost(USD)',
-                    'Labor_Cost(USD)', 'EPI', 'Number_of_Samples(Throughput)']
+                    'Labor_Cost(USD)', 'EPI', 'aEPI', 'Number_of_Samples(Throughput)',
+                    'Successful_Samples', 'Total_Samples', 'Empirical_Success_Rate']
         for col in num_cols:
             if col in combined.columns:
                 combined[col] = combined[col].apply(to_float)
@@ -207,8 +246,13 @@ with col_list:
     # 4. Render the filtered workflow list table for preview
     st.markdown("#### 📋 Workflow List")
     if not f_df.empty:
-        ov_disp = f_df[['DB_Source', 'Workflow_Name', 'Author']].rename(
-            columns={'DB_Source': 'Src', 'Workflow_Name': 'Name'}
+        preview_cols = ['DB_Source', 'Workflow_Category', 'Workflow_Name', 'Author']
+        if 'EPI' in f_df.columns:
+            preview_cols.append('EPI')
+        if 'aEPI' in f_df.columns:
+            preview_cols.append('aEPI')
+        ov_disp = f_df[preview_cols].rename(
+            columns={'DB_Source': 'Src', 'Workflow_Category': 'Category', 'Workflow_Name': 'Name'}
         )
         st.dataframe(ov_disp, hide_index=True, width='stretch')
     else:
@@ -227,7 +271,15 @@ with col_detail:
     target_ws = "Workflow_MasterDB" if row['DB_Source'] == 'MasterDB' else "Workflow_UserDB"
 
     st.subheader(f"📄 {row['Workflow_Name']}")
-    st.caption(f"**Author:** {row.get('Author', 'Unknown')} | **Registry:** {row['DB_Source']}")
+    workflow_category = str(row.get('Workflow_Category', 'Other') or 'Other').strip()
+    if workflow_category not in WORKFLOW_CATEGORY_OPTIONS:
+        workflow_category = "Other"
+
+    st.caption(
+        f"**Author:** {row.get('Author', 'Unknown')} | "
+        f"**Category:** {workflow_category} | "
+        f"**Registry:** {row['DB_Source']}"
+    )
 
     # [CRITICAL FIX] Implement safe type casting using to_float to prevent page crashes on NaN cells
     tat = to_float(row.get('Turnaround_Time(h)', 0))
@@ -237,11 +289,28 @@ with col_detail:
     tp = int(to_float(row.get('Number_of_Samples(Throughput)', 96)))
     epi = to_float(row.get('EPI', 0))
 
-    m1, m2, m3, m4 = st.columns(4)
+    use_aepi = has_value(row.get('aEPI', ""))
+    successful_samples = int(to_float(row.get('Successful_Samples', 0))) if use_aepi else None
+    total_samples = int(to_float(row.get('Total_Samples', 0))) if use_aepi else None
+    empirical_success_rate = to_float(row.get('Empirical_Success_Rate', 0)) if use_aepi else None
+    aepi = to_float(row.get('aEPI', 0)) if use_aepi else None
+    final_validation_ram = str(row.get('Final_Validation_RAM', '') or '').strip() if use_aepi else ""
+
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("EPI (-)", f"{epi:.2f}")
-    m2.metric("Turnaround Time (h)", f"{tat:.2f}")
-    m3.metric("Total Cost (USD)", f"{total_cost_calc:,.2f}")
-    m4.metric("Number of Samples", f"{tp}")
+    m2.metric("aEPI (-)", f"{aepi:.2f}" if use_aepi and aepi is not None else "N/A")
+    m3.metric("Turnaround Time (h)", f"{tat:.2f}")
+    m4.metric("Total Cost (USD)", f"{total_cost_calc:,.2f}")
+    m5.metric("Throughput", f"{tp}")
+
+    if use_aepi:
+        success_pct = empirical_success_rate * 100 if empirical_success_rate is not None else 0
+        st.info(
+            f"🧪 **aEPI enabled** | Empirical success rate: **{success_pct:.2f}%** "
+            f"({successful_samples}/{total_samples} samples) | Final validation RAM: **{final_validation_ram or 'N/A'}**"
+        )
+    else:
+        st.caption("aEPI was not calculated for this workflow because empirical success-rate data were not included.")
 
     st.divider()
 
@@ -255,13 +324,16 @@ with col_detail:
     # --- TAB 1: Overview & Analysis ---
     with t_analytics:
         with st.container(border=True):
-            c_desc, c_out = st.columns([1, 1])
+            c_desc, c_out, c_cat = st.columns([1, 1, 1])
             with c_desc:
                 st.markdown("##### 📝 Description")
                 st.write(row.get('Description', 'No description provided.'))
             with c_out:
                 st.markdown("##### 🎯 Output Summary")
                 st.markdown(f":green[**{row.get('Output_Summary', 'Not specified.')}**]")
+            with c_cat:
+                st.markdown("##### 🧭 Workflow Category")
+                st.markdown(f":blue[**{workflow_category}**]")
 
         st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
         st.markdown("#### 💎 Performance Summary")
@@ -272,6 +344,18 @@ with col_detail:
             st.info(f"⏱️ **Operation Time (h):** {op_t:.2f} \n\n⏱️ **Hands-on Time (h):** {hot_t:.2f}")
         with c_cost_card:
             st.warning(f"💰 **Labor Cost (USD):** {labor_cost:,.2f}\n\n💰 **Material Cost (USD):** {mat_cost:,.2f}")
+
+        if use_aepi:
+            st.markdown("#### 🧪 Empirical Success Adjustment")
+            ac1, ac2, ac3, ac4 = st.columns(4)
+            ac1.metric("Successful Samples", f"{successful_samples:,}")
+            ac2.metric("Total Samples", f"{total_samples:,}")
+            ac3.metric("Success Rate", f"{empirical_success_rate * 100:.2f}%")
+            ac4.metric("aEPI (-)", f"{aepi:.2f}")
+            st.caption(
+                "aEPI is calculated as EPI divided by the empirical success rate. "
+                "The success rate is evaluated at the final validation RAM."
+            )
 
         st.divider()
         st.markdown("#### 📊 Resource Consumption Breakdown")
@@ -366,7 +450,15 @@ with col_detail:
                     display_data = ref_data
 
                 with st.container(border=True):
-                    st.markdown(f"**Step {i + 1}: {s['id']} - {s.get('name', 'N/A')}**")
+                    step_title = f"**Step {i + 1}: {s['id']} - {s.get('name', 'N/A')}**"
+                    validation_badge = ""
+                    if use_aepi and i == len(steps_list) - 1:
+                        validation_badge = (
+                            " <span style='background-color:#DBEAFE; color:#1D4ED8; "
+                            "padding:2px 7px; border-radius:999px; font-size:11px; "
+                            "font-weight:600;'>🧪 Final Validation RAM</span>"
+                        )
+                    st.markdown(step_title + validation_badge, unsafe_allow_html=True)
 
                     # Row 1: Render input/output specifications
                     st.caption(
@@ -508,7 +600,15 @@ with col_detail:
             st.session_state.wf_author = row.get('Author', "Researcher")
             st.session_state.wf_desc = row.get('Description', "")
             st.session_state.wf_output = row.get('Output_Summary', "")
+            st.session_state.wf_category = workflow_category
             st.session_state.wf_throughput = int(row.get('Number_of_Samples(Throughput)', 96))
+            st.session_state.use_aepi = use_aepi
+            if use_aepi:
+                st.session_state.wf_successful_samples = int(to_float(row.get('Successful_Samples', 96)))
+                st.session_state.wf_total_samples = int(to_float(row.get('Total_Samples', 96)))
+            else:
+                st.session_state.wf_successful_samples = 96
+                st.session_state.wf_total_samples = 96
 
             st.switch_page("pages/Workflow Builder.py")
 
@@ -519,6 +619,12 @@ with col_detail:
                 new_name = st.text_input("Update Workflow Name", value=row.get('Workflow_Name', ''))
                 new_desc = st.text_area("Update Description", value=row.get('Description', ''))
                 new_output = st.text_input("Update Output Summary", value=row.get('Output_Summary', ''))
+                current_category = workflow_category if workflow_category in WORKFLOW_CATEGORY_OPTIONS else "Other"
+                new_category = st.selectbox(
+                    "Update Workflow Category",
+                    WORKFLOW_CATEGORY_OPTIONS,
+                    index=WORKFLOW_CATEGORY_OPTIONS.index(current_category)
+                )
                 edit_code = st.text_input("Access Code", type="password")
 
                 conflict_action = st.radio(
@@ -534,6 +640,9 @@ with col_detail:
 
                         if 'access_code' not in t_df.columns:
                             t_df['access_code'] = ""
+
+                        if 'Workflow_Category' not in t_df.columns:
+                            t_df['Workflow_Category'] = "Other"
 
                         idx_list = t_df.index[t_df['Workflow_Name'] == selected_wf_name].tolist()
 
@@ -567,6 +676,7 @@ with col_detail:
                                 updated_row['Workflow_Name'] = clean_new_name
                                 updated_row['Description'] = new_desc
                                 updated_row['Output_Summary'] = new_output
+                                updated_row['Workflow_Category'] = new_category
 
                                 if conflict_indices:
                                     if conflict_action == "Overwrite existing workflow":
@@ -604,6 +714,7 @@ with col_detail:
                                     t_df.at[idx, 'Workflow_Name'] = clean_new_name
                                     t_df.at[idx, 'Description'] = new_desc
                                     t_df.at[idx, 'Output_Summary'] = new_output
+                                    t_df.at[idx, 'Workflow_Category'] = new_category
 
                                     st.success("Workflow metadata updated successfully.")
 
@@ -653,12 +764,18 @@ with col_detail:
             summary_df = pd.DataFrame([{
                 "Workflow Name": row['Workflow_Name'],
                 "Author": row.get('Author', 'Unknown'),
+                "Workflow Category": workflow_category,
                 "Turnaround Time (h)": tat,
                 "Total Cost (USD)": total_cost_calc,
                 "Material Cost (USD)": row.get('Material_Cost(USD)', 0),
                 "Labor Cost (USD)": row.get('Labor_Cost(USD)', 0),
                 "Throughput": tp,
-                "EPI": epi
+                "EPI": epi,
+                "Successful Samples": successful_samples if use_aepi else "",
+                "Total Samples": total_samples if use_aepi else "",
+                "Empirical Success Rate": empirical_success_rate if use_aepi else "",
+                "Final Validation RAM": final_validation_ram if use_aepi else "",
+                "aEPI": aepi if use_aepi else ""
             }])
 
             # 2. [FIXED] Robust Resource Breakdown Sheet Generation with Robot & Device Specs
@@ -693,7 +810,8 @@ with col_detail:
                         "Material Cost (USD)": mat_c,
                         "Labor Cost (USD)": lab_c,
                         "Total Time (h)": op_t + ho_t,
-                        "Total Cost (USD)": mat_c + lab_c
+                        "Total Cost (USD)": mat_c + lab_c,
+                        "Final Validation RAM": "Yes" if (use_aepi and int(to_float(s.get('step', 1))) == len(steps_list)) else ""
                     })
                 res_disp = pd.DataFrame(resolved_steps)
             else:
@@ -737,11 +855,18 @@ with col_detail:
 
             # 5. TXT Report Generation
             report_txt = f"# Workflow Analysis: {row['Workflow_Name']}\n\n"
-            report_txt += f"- Turnaround Time (h): {tat:.2f}  | Total Cost (USD): {total_cost_calc:,.2f}\n\n"
-            report_txt += "## Step Sequence\n"
+            report_txt += f"- Workflow Category: {workflow_category}\n"
+            report_txt += f"- Turnaround Time (h): {tat:.2f}  | Total Cost (USD): {total_cost_calc:,.2f} | EPI: {epi:.2f}\n"
+            if use_aepi:
+                report_txt += (
+                    f"- aEPI: {aepi:.2f} | Empirical success rate: {empirical_success_rate * 100:.2f}% "
+                    f"({successful_samples}/{total_samples} samples) | Final validation RAM: {final_validation_ram}\n"
+                )
+            report_txt += "\n## Step Sequence\n"
             if not res_disp.empty:
                 for _, r in res_disp.iterrows():
-                    report_txt += f"{int(r['Step No'])}. [{r['RAM ID']}] {r['RAM Name']} | Robot: {r['Robot']} | Device: {r['Functional Device']}: {r['Total Time (h)']:.2f}h / {r['Total Cost (USD)']:,.2f} USD\n"
+                    fv_tag = " | Final Validation RAM" if str(r.get('Final Validation RAM', '')).strip() == "Yes" else ""
+                    report_txt += f"{int(r['Step No'])}. [{r['RAM ID']}] {r['RAM Name']}{fv_tag} | Robot: {r['Robot']} | Device: {r['Functional Device']}: {r['Total Time (h)']:.2f}h / {r['Total Cost (USD)']:,.2f} USD\n"
 
             # 6. UI Download Layout
             st.divider()
