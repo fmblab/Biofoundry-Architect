@@ -86,7 +86,95 @@ def to_float(val):
 
 def has_value(val):
     """Return True when a spreadsheet cell contains a meaningful stored value."""
+    if val is None:
+        return False
+    if isinstance(val, float) and math.isnan(val):
+        return False
     return str(val).strip() not in ["", "nan", "NaN", "None"]
+
+
+def is_aepi_record_enabled(record):
+    """
+    Determine whether a workflow actually contains empirical validation data.
+    Legacy rows may contain 0.0 in aEPI-related columns even when aEPI was not used;
+    those rows should be treated as aEPI-disabled.
+    """
+    successful = record.get("Successful_Samples", "")
+    total = record.get("Total_Samples", "")
+    rate = record.get("Empirical_Success_Rate", "")
+
+    if not (has_value(successful) and has_value(total) and has_value(rate)):
+        return False
+
+    successful_f = to_float(successful)
+    total_f = to_float(total)
+    rate_f = to_float(rate)
+
+    if total_f <= 0:
+        return False
+    if successful_f < 0 or successful_f > total_f:
+        return False
+    if rate_f <= 0:
+        return False
+
+    return True
+
+
+def clean_json_value(value):
+    """Recursively convert pandas/numpy missing values to JSON-safe null values."""
+    if isinstance(value, dict):
+        return {k: clean_json_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [clean_json_value(v) for v in value]
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return value
+
+
+def parse_nested_workflow_steps(steps):
+    """Parse nested I/O and material strings inside each workflow step for structured JSON export."""
+    parsed_steps = []
+    for step in safe_eval_list(steps):
+        if not isinstance(step, dict):
+            continue
+        step_copy = step.copy()
+        step_copy["io_data"] = safe_eval_list(step_copy.get("io_data", "[]"))
+        step_copy["material_data"] = safe_eval_list(step_copy.get("material_data", "[]"))
+        parsed_steps.append(clean_json_value(step_copy))
+    return parsed_steps
+
+
+def build_structured_workflow_json(row, use_aepi_flag):
+    """Build a strict JSON-safe workflow export with real nested arrays instead of escaped strings."""
+    export_data = clean_json_value(row.to_dict())
+
+    for sensitive_key in ['access_code', 'Access_Code']:
+        export_data.pop(sensitive_key, None)
+
+    export_data["Steps_RAMList"] = parse_nested_workflow_steps(row.get("Steps_RAMList", "[]"))
+    export_data["Material_Summary"] = clean_json_value(safe_eval_list(row.get("Material_Summary", "[]")))
+    export_data["aEPI_Enabled"] = bool(use_aepi_flag)
+
+    if use_aepi_flag:
+        success_rate = to_float(row.get("Empirical_Success_Rate", 0))
+        aepi_val = row.get("aEPI", "")
+        if not has_value(aepi_val) and success_rate > 0:
+            export_data["aEPI"] = round(to_float(row.get("EPI", 0)) / success_rate, 2)
+    else:
+        export_data["Successful_Samples"] = None
+        export_data["Total_Samples"] = None
+        export_data["Empirical_Success_Rate"] = None
+        export_data["Final_Validation_RAM"] = None
+        export_data["aEPI"] = None
+
+    return clean_json_value(export_data)
 
 
 def ram_natural_sort_key(id_series):
@@ -152,9 +240,10 @@ def load_workflow_db():
             .replace(["", "nan", "NaN", "None", "Uncategorized"], "Other")
         )
 
+        # Keep aEPI-related columns uncast so blank cells remain distinguishable from 0.0.
+        # They are parsed only after is_aepi_record_enabled() confirms empirical data are present.
         num_cols = ['Turnaround_Time(h)', 'Operation_Time(h)', 'Hands_on_Time(h)', 'Material_Cost(USD)',
-                    'Labor_Cost(USD)', 'EPI', 'aEPI', 'Number_of_Samples(Throughput)',
-                    'Successful_Samples', 'Total_Samples', 'Empirical_Success_Rate']
+                    'Labor_Cost(USD)', 'EPI', 'Number_of_Samples(Throughput)']
         for col in num_cols:
             if col in combined.columns:
                 combined[col] = combined[col].apply(to_float)
@@ -289,7 +378,7 @@ with col_detail:
     tp = int(to_float(row.get('Number_of_Samples(Throughput)', 96)))
     epi = to_float(row.get('EPI', 0))
 
-    use_aepi = has_value(row.get('aEPI', ""))
+    use_aepi = is_aepi_record_enabled(row)
     successful_samples = int(to_float(row.get('Successful_Samples', 0))) if use_aepi else None
     total_samples = int(to_float(row.get('Total_Samples', 0))) if use_aepi else None
     empirical_success_rate = to_float(row.get('Empirical_Success_Rate', 0)) if use_aepi else None
@@ -757,7 +846,7 @@ with col_detail:
     # --- TAB 6: Export (Indentation, Security and Hardware Aligned) ---
     with t_export:
         st.subheader("📤 Export Workflow Data")
-        st.write("Download the complete workflow profile, resource analysis, and BOM.")
+        st.write("Download structured workflow records, resource analysis, and BOM.")
 
         try:
             # 1. Summary Data Sheet Generation
@@ -877,13 +966,13 @@ with col_detail:
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                    width='stretch')
             with c2:
-                # [SECURITY FIXED] Strip out password keys prior to JSON serialization
-                json_export_data = row.to_dict()
-                for sensitive_key in ['access_code', 'Access_Code']:
-                    json_export_data.pop(sensitive_key, None)
+                # Export a strict, structured JSON record. Nested step, I/O, and material fields
+                # are parsed as arrays/objects instead of escaped strings. Optional aEPI fields
+                # are exported as null when empirical validation data were not included.
+                json_export_data = build_structured_workflow_json(row, use_aepi)
 
                 st.download_button("🔗 Download JSON",
-                                   data=json.dumps(json_export_data, indent=4, ensure_ascii=False),
+                                   data=json.dumps(json_export_data, indent=4, ensure_ascii=False, allow_nan=False),
                                    file_name=f"{row['Workflow_Name']}.json", mime="application/json",
                                    width='stretch')
             with c3:
