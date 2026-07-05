@@ -54,6 +54,39 @@ def optional_float(val):
         return math.nan
 
 
+def has_value(val):
+    """Return True only when an optional spreadsheet cell contains a meaningful value."""
+    if val is None:
+        return False
+    if isinstance(val, float) and math.isnan(val):
+        return False
+    return str(val).strip() not in ["", "nan", "NaN", "None", "N/A"]
+
+
+def is_aepi_record_enabled(row):
+    """
+    Determine whether a workflow has valid empirical success-rate data.
+    Legacy rows with aEPI=0.0 and Total_Samples=0 are treated as aEPI-disabled.
+    """
+    successful = row.get('Successful_Samples', '')
+    total = row.get('Total_Samples', '')
+    rate = row.get('Empirical_Success_Rate', '')
+    aepi = row.get('aEPI', '')
+
+    if not (has_value(successful) and has_value(total) and has_value(rate) and has_value(aepi)):
+        return False
+
+    successful_num = to_float(successful)
+    total_num = to_float(total)
+    rate_num = to_float(rate)
+
+    return (
+        total_num > 0
+        and 0 < rate_num <= 1
+        and 0 <= successful_num <= total_num
+    )
+
+
 def safe_eval_list(val):
     """Safely parse list-like or JSON strings into Python objects."""
     if isinstance(val, list):
@@ -130,7 +163,7 @@ def workflow_label(row):
 
 
 def has_aepi_data(row):
-    return not pd.isna(row.get('aEPI_num', math.nan))
+    return bool(row.get('aEPI_Enabled', is_aepi_record_enabled(row)))
 
 
 def get_steps_list(row):
@@ -455,6 +488,11 @@ def load_all_workflows():
                 combined[col] = math.nan
             combined[f'{col}_num'] = combined[col].apply(optional_float)
 
+        combined['aEPI_Enabled'] = combined.apply(is_aepi_record_enabled, axis=1)
+        disabled_aepi_mask = ~combined['aEPI_Enabled']
+        for col in optional_num_cols:
+            combined.loc[disabled_aepi_mask, f'{col}_num'] = math.nan
+
         if 'Final_Validation_RAM' not in combined.columns:
             combined['Final_Validation_RAM'] = ""
 
@@ -587,8 +625,8 @@ material_df = build_material_dataframe(compare_df)
 equipment_df = build_equipment_dataframe(step_df)
 
 st.divider()
-st.subheader("📈 Category Comparison")
-st.caption(f"Comparison category: **{selected_category}**")
+st.subheader("📈 Category-based Comparison")
+st.caption(f"Selected category: **{selected_category}**")
 
 summary_records = []
 for _, row in compare_df.iterrows():
@@ -629,14 +667,14 @@ st.dataframe(
 )
 
 summary_tab, comp_tab, breakdown_tab, resource_tab = st.tabs([
-    "🏁 Summary",
+    "🏁 Summary Comparison",
     "🧬 RAM Composition",
     "⏱️ Time & Cost Breakdown",
     "🤖 Equipment & Consumables"
 ])
 
 # ==========================================
-# Tab 1. Summary
+# Tab 1. Summary Comparison
 # ==========================================
 with summary_tab:
     chart_cols = st.columns(4 if show_aepi else 3)
@@ -667,7 +705,7 @@ with summary_tab:
             st.plotly_chart(fig_aepi, width='stretch', key='summary_aepi_chart')
 
     st.divider()
-    st.markdown("#### 💡 Comparison Insights")
+    st.markdown("#### 💡 Key Comparison Insights")
     try:
         best_epi = compare_df.loc[compare_df['EPI'].idxmin()]
         fastest = compare_df.loc[compare_df['Turnaround_Time(h)'].idxmin()]
