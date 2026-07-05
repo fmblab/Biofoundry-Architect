@@ -1,0 +1,966 @@
+{
+    "Workflow_Name": "GE Workflow 1 (Manual Transformation)",
+    "Author": "Jun Sung Park",
+    "Description": "Genome Editing Workflow (Heo et al. 2026, Trends In Biotechnology), RAM Q is converted to manual",
+    "Output_Summary": "Obtain genome-edited strains",
+    "Number_of_Samples(Throughput)": 96.0,
+    "Steps_RAMList": [
+        {
+            "step": 1,
+            "id": "Q",
+            "name": "Transformation with electroporation",
+            "op_time": 2.4,
+            "ho_time": 3.0,
+            "mat_cost": 852.8818,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Competent cell",
+                    "Classification": "Cells",
+                    "Vessel": "High-profile Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Transformant",
+                    "Classification": "Cells",
+                    "Vessel": "High-profile Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "BHIS Medium",
+                    "Quantity": 19.584,
+                    "Unit": "mL",
+                    "Unit Price": 0.011052631578947368,
+                    "Total Price": 0.2165
+                },
+                {
+                    "Material Name": "MCA 100μl Tip",
+                    "Quantity": 192.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.081,
+                    "Total Price": 15.552
+                },
+                {
+                    "Material Name": "MCA 50μl Tip",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.081,
+                    "Total Price": 7.776
+                },
+                {
+                    "Material Name": "High Profile Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.044,
+                    "Total Price": 0.044
+                },
+                {
+                    "Material Name": "Electroporation plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 1.3,
+                    "Total Price": 1.3
+                },
+                {
+                    "Material Name": "LiHa 1000μl Tip",
+                    "Quantity": 24.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 0.36
+                }
+            ],
+            "Robot": "['LiHa', 'MCA', 'RoMa']",
+            "Functional_Device": "['CPAC', 'Te-Shaker', 'Electroporator']"
+        },
+        {
+            "step": 2,
+            "id": "H",
+            "name": "Spreading",
+            "op_time": 1.5,
+            "ho_time": 0.0,
+            "mat_cost": 5.798400000000001,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Transformant",
+                    "Classification": "Cells",
+                    "Vessel": "High-profile Plate",
+                    "Essential": true,
+                    "Vessel Class": "Microplate"
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Agar plate with cell spread",
+                    "Classification": "Analyte / Sample",
+                    "Vessel": "Petri Dish",
+                    "Essential": true,
+                    "Vessel Class": "Agar plate"
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "LiHa 200μl Tip",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 1.44
+                },
+                {
+                    "Material Name": "High Profile Plate(from RAM Q)",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                },
+                {
+                    "Material Name": "Petri Dish",
+                    "Quantity": 48.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.069,
+                    "Total Price": 3.312
+                },
+                {
+                    "Material Name": "BHIS-Cm/SPc Agar",
+                    "Quantity": 96.0,
+                    "Unit": "mL",
+                    "Unit Price": 0.0109,
+                    "Total Price": 1.0464
+                }
+            ],
+            "Robot": "['LiHa', 'RoMa']",
+            "Functional_Device": "['PetriPlater']"
+        },
+        {
+            "step": 3,
+            "id": "I",
+            "name": "Culture - solid",
+            "op_time": 54.0,
+            "ho_time": 0.1,
+            "mat_cost": 0.0,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Agar plate with cell spread",
+                    "Classification": "Analyte / Sample",
+                    "Vessel": "Petri Dish",
+                    "Vessel Class": "None",
+                    "Essential": true
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Agar plate with colonies",
+                    "Classification": "Analyte / Sample",
+                    "Vessel": "Petri Dish",
+                    "Vessel Class": "None",
+                    "Essential": true
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "Petri Dish(from RAM H)",
+                    "Quantity": 48.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                },
+                {
+                    "Material Name": "BHIS-Cm/SPc Agar(from RAM H)",
+                    "Quantity": 96.0,
+                    "Unit": "mL",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                }
+            ],
+            "Robot": "None",
+            "Functional_Device": "['Incubator']"
+        },
+        {
+            "step": 4,
+            "id": "J",
+            "name": "Colony picking",
+            "op_time": 1.46,
+            "ho_time": 0.17,
+            "mat_cost": 1.4769999999999999,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Agar plate with colonies",
+                    "Classification": "Analyte / Sample",
+                    "Vessel": "Petri Dish",
+                    "Vessel Class": "Agar plate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Cell suspension",
+                    "Classification": "Cells",
+                    "Vessel": "Low-profile Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Cell suspension",
+                    "Classification": "Cells",
+                    "Vessel": "ODTC Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "Petri Dish(from RAM H)",
+                    "Quantity": 48.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                },
+                {
+                    "Material Name": "BHIS-Cm/Spc Agar(from RAM H)",
+                    "Quantity": 96.0,
+                    "Unit": "mL",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                },
+                {
+                    "Material Name": "LiHa 200μl Tip",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 1.44
+                },
+                {
+                    "Material Name": "Low Profile Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.037,
+                    "Total Price": 0.037
+                }
+            ],
+            "Robot": "['LiHa', 'MCA']",
+            "Functional_Device": "['Pickolo']"
+        },
+        {
+            "step": 5,
+            "id": "B-002",
+            "name": "Thermal cycling for colony PCR",
+            "op_time": 0.83,
+            "ho_time": 0.16,
+            "mat_cost": 1711.5756000000001,
+            "io_data": [
+                {
+                    "Type": "Output",
+                    "Substance": "PCR mixture with Amplified DNA",
+                    "Classification": "DNA",
+                    "Vessel": "ODTC Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Input",
+                    "Substance": "Colony resuspended with distilled water",
+                    "Classification": "Cells",
+                    "Vessel": "ODTC Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Input",
+                    "Substance": "PCR pre-mixture",
+                    "Classification": "Reaction Mix",
+                    "Vessel": "Tecan 25mL Disposable Trough",
+                    "Vessel Class": "Trough",
+                    "Essential": false
+                },
+                {
+                    "Type": "Input",
+                    "Substance": "Diluted oligo",
+                    "Classification": "DNA",
+                    "Vessel": "Low-profile Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "Low-profile Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.037,
+                    "Total Price": 0.037
+                },
+                {
+                    "Material Name": "LiHa 200μL Tip",
+                    "Quantity": 208.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 3.12
+                },
+                {
+                    "Material Name": "LiHa 1000μL Tip",
+                    "Quantity": 48.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 0.72
+                },
+                {
+                    "Material Name": "2X Sappahire Master mix",
+                    "Quantity": 125.0,
+                    "Unit": "rxn",
+                    "Unit Price": 0.589925,
+                    "Total Price": 73.7406
+                },
+                {
+                    "Material Name": "ODTC Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.038,
+                    "Total Price": 0.038
+                },
+                {
+                    "Material Name": "primer F",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 8.51,
+                    "Total Price": 816.96
+                },
+                {
+                    "Material Name": "primer R",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 8.51,
+                    "Total Price": 816.96
+                }
+            ],
+            "Robot": "['LiHa']",
+            "Functional_Device": "['ODTC']"
+        },
+        {
+            "step": 6,
+            "id": "C",
+            "name": "DNA Clean-up",
+            "op_time": 1.0,
+            "ho_time": 0.16,
+            "mat_cost": 180.092,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Amplified DNA",
+                    "Classification": "DNA",
+                    "Vessel": "ODTC Plate",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Purified DNA",
+                    "Classification": "DNA",
+                    "Vessel": "UV-STAR MICROPLATE",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "UV-STAR Microplate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 8.807500000000001,
+                    "Total Price": 8.8075
+                },
+                {
+                    "Material Name": "ODTC Plate(from RAM B)",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                },
+                {
+                    "Material Name": "PCR Prep Kit",
+                    "Quantity": 96.0,
+                    "Unit": "rxn",
+                    "Unit Price": 1.730463917525773,
+                    "Total Price": 166.1245
+                },
+                {
+                    "Material Name": "LiHa 1000μl Tip",
+                    "Quantity": 56.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 0.84
+                },
+                {
+                    "Material Name": "LiHa 200μl Tip",
+                    "Quantity": 288.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 4.32
+                },
+                {
+                    "Material Name": "Low-profile Plate(from RAM E)",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                }
+            ],
+            "Robot": "['LiHa', 'RoMa']",
+            "Functional_Device": "['Te-VacS']"
+        },
+        {
+            "step": 7,
+            "id": "O",
+            "name": "Sequencing",
+            "op_time": 18.0,
+            "ho_time": 0.16,
+            "mat_cost": 567.36,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Purified DNA",
+                    "Classification": "DNA",
+                    "Vessel": "UV-STAR MICROPLATE",
+                    "Vessel Class": "Microplate",
+                    "Essential": true
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Validated sequencing result",
+                    "Classification": "Data",
+                    "Vessel": "Data",
+                    "Vessel Class": "Digital data",
+                    "Essential": true
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "Sequencing(order)",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 5.91,
+                    "Total Price": 567.36
+                },
+                {
+                    "Material Name": "Sequencing primer F",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 8.51,
+                    "Total Price": 8.51
+                },
+                {
+                    "Material Name": "Sequencing primer R",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 8.51,
+                    "Total Price": 8.51
+                }
+            ],
+            "Robot": "None",
+            "Functional_Device": "None"
+        },
+        {
+            "step": 8,
+            "id": "K",
+            "name": "Culture - liquid",
+            "op_time": 18.0,
+            "ho_time": 0.083,
+            "mat_cost": 2.9144260869565217,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Cell suspension",
+                    "Classification": "Cells",
+                    "Vessel": "Low-profile Plate",
+                    "Essential": true,
+                    "Vessel Class": "Microplate"
+                },
+                {
+                    "Type": "Input",
+                    "Substance": "Medium",
+                    "Classification": "Liquid Medium",
+                    "Vessel": "Deep-well Plate",
+                    "Essential": false,
+                    "Vessel Class": "Microplate"
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Cultured cell",
+                    "Classification": "Cells",
+                    "Vessel": "Deep-well Plate",
+                    "Essential": true,
+                    "Vessel Class": "Microplate"
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Cultured cell",
+                    "Classification": "Cells",
+                    "Vessel": "Stock Plate",
+                    "Essential": true,
+                    "Vessel Class": "Microplate"
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "Low-profile Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.037,
+                    "Total Price": 0.037
+                },
+                {
+                    "Material Name": "Stock Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.16,
+                    "Total Price": 0.16
+                },
+                {
+                    "Material Name": "Deep-well Plate",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.096,
+                    "Total Price": 0.096
+                },
+                {
+                    "Material Name": "LiHa 200μl Tip",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 1.44
+                },
+                {
+                    "Material Name": "LiHa 1000μl Tip",
+                    "Quantity": 24.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 0.36
+                },
+                {
+                    "Material Name": "BHIS-Cm/Spc medium",
+                    "Quantity": 69.12,
+                    "Unit": "mL",
+                    "Unit Price": 0.011884057971014493,
+                    "Total Price": 0.8214
+                }
+            ],
+            "Robot": "None",
+            "Functional_Device": "['Shaking Incubator for DWP']"
+        },
+        {
+            "step": 9,
+            "id": "P",
+            "name": "Stock",
+            "op_time": 18.42,
+            "ho_time": 0.16,
+            "mat_cost": 3.6021504,
+            "io_data": [
+                {
+                    "Type": "Input",
+                    "Substance": "Cultured cell",
+                    "Classification": "Cells",
+                    "Vessel": "Stock Plate",
+                    "Essential": true,
+                    "Vessel Class": "Microplate"
+                },
+                {
+                    "Type": "Output",
+                    "Substance": "Stock of cell harboring desired plasmid",
+                    "Classification": "Cells",
+                    "Vessel": "Stock Plate",
+                    "Essential": true,
+                    "Vessel Class": "Microplate"
+                }
+            ],
+            "material_data": [
+                {
+                    "Material Name": "LiHa 1000μl Tip",
+                    "Quantity": 8.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 0.12
+                },
+                {
+                    "Material Name": "LiHa 200μl Tip",
+                    "Quantity": 96.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.015,
+                    "Total Price": 1.44
+                },
+                {
+                    "Material Name": "Stock Plate(from RAM K)",
+                    "Quantity": 1.0,
+                    "Unit": "ea",
+                    "Unit Price": 0.0,
+                    "Total Price": 0.0
+                },
+                {
+                    "Material Name": "Glycerol",
+                    "Quantity": 34.56,
+                    "Unit": "mL",
+                    "Unit Price": 0.059090000000000004,
+                    "Total Price": 2.0422
+                }
+            ],
+            "Robot": "['LiHa']",
+            "Functional_Device": "None"
+        }
+    ],
+    "Operation_Time(h)": 115.61,
+    "Hands_on_Time(h)": 3.9930000000000003,
+    "Turnaround_Time(h)": 119.603,
+    "Material_Summary": [
+        {
+            "Material Name": "BHIS Medium",
+            "Quantity": 19.584,
+            "Unit": "mL",
+            "Unit Price": 0.011052631578947368,
+            "Total Price": 0.2165,
+            "Source_RAM": "Q"
+        },
+        {
+            "Material Name": "MCA 100μl Tip",
+            "Quantity": 192.0,
+            "Unit": "ea",
+            "Unit Price": 0.081,
+            "Total Price": 15.552,
+            "Source_RAM": "Q"
+        },
+        {
+            "Material Name": "MCA 50μl Tip",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 0.081,
+            "Total Price": 7.776,
+            "Source_RAM": "Q"
+        },
+        {
+            "Material Name": "High Profile Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.044,
+            "Total Price": 0.044,
+            "Source_RAM": "Q"
+        },
+        {
+            "Material Name": "Electroporation plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 1.3,
+            "Total Price": 1.3,
+            "Source_RAM": "Q"
+        },
+        {
+            "Material Name": "LiHa 1000μl Tip",
+            "Quantity": 24.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 0.36,
+            "Source_RAM": "Q"
+        },
+        {
+            "Material Name": "LiHa 200μl Tip",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 1.44,
+            "Source_RAM": "H"
+        },
+        {
+            "Material Name": "High Profile Plate(from RAM Q)",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "H"
+        },
+        {
+            "Material Name": "Petri Dish",
+            "Quantity": 48.0,
+            "Unit": "ea",
+            "Unit Price": 0.069,
+            "Total Price": 3.312,
+            "Source_RAM": "H"
+        },
+        {
+            "Material Name": "BHIS-Cm/SPc Agar",
+            "Quantity": 96.0,
+            "Unit": "mL",
+            "Unit Price": 0.0109,
+            "Total Price": 1.0464,
+            "Source_RAM": "H"
+        },
+        {
+            "Material Name": "Petri Dish(from RAM H)",
+            "Quantity": 48.0,
+            "Unit": "ea",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "I"
+        },
+        {
+            "Material Name": "BHIS-Cm/SPc Agar(from RAM H)",
+            "Quantity": 96.0,
+            "Unit": "mL",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "I"
+        },
+        {
+            "Material Name": "Petri Dish(from RAM H)",
+            "Quantity": 48.0,
+            "Unit": "ea",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "J"
+        },
+        {
+            "Material Name": "BHIS-Cm/Spc Agar(from RAM H)",
+            "Quantity": 96.0,
+            "Unit": "mL",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "J"
+        },
+        {
+            "Material Name": "LiHa 200μl Tip",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 1.44,
+            "Source_RAM": "J"
+        },
+        {
+            "Material Name": "Low Profile Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.037,
+            "Total Price": 0.037,
+            "Source_RAM": "J"
+        },
+        {
+            "Material Name": "Low-profile Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.037,
+            "Total Price": 0.037,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "LiHa 200μL Tip",
+            "Quantity": 208.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 3.12,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "LiHa 1000μL Tip",
+            "Quantity": 48.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 0.72,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "2X Sappahire Master mix",
+            "Quantity": 125.0,
+            "Unit": "rxn",
+            "Unit Price": 0.589925,
+            "Total Price": 73.7406,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "ODTC Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.038,
+            "Total Price": 0.038,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "primer F",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 8.51,
+            "Total Price": 816.96,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "primer R",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 8.51,
+            "Total Price": 816.96,
+            "Source_RAM": "B-002"
+        },
+        {
+            "Material Name": "UV-STAR Microplate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 8.807500000000001,
+            "Total Price": 8.8075,
+            "Source_RAM": "C"
+        },
+        {
+            "Material Name": "ODTC Plate(from RAM B)",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "C"
+        },
+        {
+            "Material Name": "PCR Prep Kit",
+            "Quantity": 96.0,
+            "Unit": "rxn",
+            "Unit Price": 1.730463917525773,
+            "Total Price": 166.1245,
+            "Source_RAM": "C"
+        },
+        {
+            "Material Name": "LiHa 1000μl Tip",
+            "Quantity": 56.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 0.84,
+            "Source_RAM": "C"
+        },
+        {
+            "Material Name": "LiHa 200μl Tip",
+            "Quantity": 288.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 4.32,
+            "Source_RAM": "C"
+        },
+        {
+            "Material Name": "Low-profile Plate(from RAM E)",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "C"
+        },
+        {
+            "Material Name": "Sequencing(order)",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 5.91,
+            "Total Price": 567.36,
+            "Source_RAM": "O"
+        },
+        {
+            "Material Name": "Sequencing primer F",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 8.51,
+            "Total Price": 8.51,
+            "Source_RAM": "O"
+        },
+        {
+            "Material Name": "Sequencing primer R",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 8.51,
+            "Total Price": 8.51,
+            "Source_RAM": "O"
+        },
+        {
+            "Material Name": "Low-profile Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.037,
+            "Total Price": 0.037,
+            "Source_RAM": "K"
+        },
+        {
+            "Material Name": "Stock Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.16,
+            "Total Price": 0.16,
+            "Source_RAM": "K"
+        },
+        {
+            "Material Name": "Deep-well Plate",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.096,
+            "Total Price": 0.096,
+            "Source_RAM": "K"
+        },
+        {
+            "Material Name": "LiHa 200μl Tip",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 1.44,
+            "Source_RAM": "K"
+        },
+        {
+            "Material Name": "LiHa 1000μl Tip",
+            "Quantity": 24.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 0.36,
+            "Source_RAM": "K"
+        },
+        {
+            "Material Name": "BHIS-Cm/Spc medium",
+            "Quantity": 69.12,
+            "Unit": "mL",
+            "Unit Price": 0.011884057971014493,
+            "Total Price": 0.8214,
+            "Source_RAM": "K"
+        },
+        {
+            "Material Name": "LiHa 1000μl Tip",
+            "Quantity": 8.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 0.12,
+            "Source_RAM": "P"
+        },
+        {
+            "Material Name": "LiHa 200μl Tip",
+            "Quantity": 96.0,
+            "Unit": "ea",
+            "Unit Price": 0.015,
+            "Total Price": 1.44,
+            "Source_RAM": "P"
+        },
+        {
+            "Material Name": "Stock Plate(from RAM K)",
+            "Quantity": 1.0,
+            "Unit": "ea",
+            "Unit Price": 0.0,
+            "Total Price": 0.0,
+            "Source_RAM": "P"
+        },
+        {
+            "Material Name": "Glycerol",
+            "Quantity": 34.56,
+            "Unit": "mL",
+            "Unit Price": 0.059090000000000004,
+            "Total Price": 2.0422,
+            "Source_RAM": "P"
+        }
+    ],
+    "Material_Cost(USD)": 3325.7013764869566,
+    "Labor_Cost(USD)": 149.7375,
+    "Total_Cost(USD)": 3475.438876486957,
+    "EPI": 6.72,
+    "aEPI": null,
+    "Successful_Samples": null,
+    "Total_Samples": null,
+    "Empirical_Success_Rate": null,
+    "Final_Validation_RAM": null,
+    "Workflow_Category": "Host strain engineering",
+    "DB_Source": "MasterDB",
+    "aEPI_Enabled": false
+}
