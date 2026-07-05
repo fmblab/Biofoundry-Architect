@@ -101,6 +101,37 @@ def calculate_aepi(epi, success_rate):
     return epi / success_rate
 
 
+def has_meaningful_value(val):
+    """Return True only when a stored spreadsheet cell represents real user-entered data."""
+    if val is None:
+        return False
+    if isinstance(val, float) and math.isnan(val):
+        return False
+    return str(val).strip() not in ["", "nan", "NaN", "None"]
+
+
+def is_aepi_record_enabled(record):
+    """
+    Restore aEPI only when empirical validation data were explicitly saved.
+    This prevents legacy 0.0 values from being interpreted as a 0% success-rate record.
+    """
+    successful = record.get('Successful_Samples', '')
+    total = record.get('Total_Samples', '')
+    rate = record.get('Empirical_Success_Rate', '')
+    aepi = record.get('aEPI', '')
+
+    if not (has_meaningful_value(successful) and has_meaningful_value(total)):
+        return False
+
+    successful_n = to_float(successful)
+    total_n = to_float(total)
+
+    if total_n <= 0 or successful_n < 0 or successful_n > total_n:
+        return False
+
+    return has_meaningful_value(rate) or has_meaningful_value(aepi)
+
+
 def get_final_validation_ram_label():
     """
     For aEPI calculation, the final validation RAM is automatically assigned
@@ -418,8 +449,7 @@ if 'edit_workflow_target' in st.session_state:
     if st.session_state.wf_category not in WORKFLOW_CATEGORY_OPTIONS:
         st.session_state.wf_category = "Other"
     st.session_state.wf_throughput = int(target.get('Number_of_Samples(Throughput)', 96))
-    loaded_aepi = str(target.get('aEPI', "")).strip()
-    st.session_state.use_aepi = loaded_aepi not in ["", "nan", "NaN", "None"]
+    st.session_state.use_aepi = is_aepi_record_enabled(target)
     if st.session_state.use_aepi:
         st.session_state.wf_successful_samples = int(to_float(target.get('Successful_Samples', 96)))
         st.session_state.wf_total_samples = int(to_float(target.get('Total_Samples', 96)))
@@ -881,8 +911,7 @@ with st.sidebar:
                 if st.session_state.wf_category not in WORKFLOW_CATEGORY_OPTIONS:
                     st.session_state.wf_category = "Other"
                 st.session_state.wf_throughput = int(target.get('Number_of_Samples(Throughput)', 96))
-                loaded_aepi = str(target.get('aEPI', "")).strip()
-                st.session_state.use_aepi = loaded_aepi not in ["", "nan", "NaN", "None"]
+                st.session_state.use_aepi = is_aepi_record_enabled(target)
                 if st.session_state.use_aepi:
                     st.session_state.wf_successful_samples = int(to_float(target.get('Successful_Samples', 96)))
                     st.session_state.wf_total_samples = int(to_float(target.get('Total_Samples', 96)))
@@ -930,7 +959,7 @@ with st.sidebar:
         "Workflow Category",
         WORKFLOW_CATEGORY_OPTIONS,
         index=WORKFLOW_CATEGORY_OPTIONS.index(current_category),
-        help="Select the broad experimental purpose of this workflow for category-restricted benchmarking."
+        help="Select the broad experimental purpose of this workflow for category-based comparison."
     )
 
     # Throughput configuration (Enforces multiples of 96-well format)
@@ -938,17 +967,18 @@ with st.sidebar:
     st.session_state.wf_throughput = (st.session_state.wf_tp_input // 96) * 96
     st.markdown("#### 🧪 aEPI Settings")
     st.info(
-        "**aEPI = EPI / empirical success rate.**\n\n"
-        "Use this option only when empirical success-rate data are available. "
-        "If all final samples were successful, set Successful samples equal to Total samples."
+        "**aEPI = EPI / observed success rate.**\n\n"
+        "Enable this only when empirical validation results are available. "
+        "If no success-rate data were collected, leave it unchecked and aEPI will be reported as N/A. "
+        "A 100% success rate should be entered only when all tested samples were experimentally validated as successful."
     )
 
     st.checkbox(
-        "Include empirical success rate for aEPI",
+        "Use observed success rate to calculate aEPI",
         key="use_aepi",
         help=(
             "If unchecked, Successful_Samples, Total_Samples, Empirical_Success_Rate, "
-            "Final_Validation_RAM, and aEPI will be saved as blank values."
+            "Final_Validation_RAM, and aEPI will be saved as blank values rather than zero."
         )
     )
 
@@ -997,7 +1027,7 @@ with st.sidebar:
         elif st.session_state.wf_total_samples > 0:
             st.warning("Successful samples cannot exceed total samples.")
     else:
-        st.caption("aEPI will not be calculated or saved for this workflow.")
+        st.caption("aEPI will be reported as N/A. No success-rate fields will be saved for this workflow.")
 
     st.divider()
 
@@ -1064,13 +1094,29 @@ with st.sidebar:
                             2
                         ) if tp > 0 else 0
 
+                        aepi_valid_for_save = True
                         if st.session_state.use_aepi:
                             success_rate = calculate_success_rate(
                                 st.session_state.wf_successful_samples,
                                 st.session_state.wf_total_samples
                             )
-                            aepi_value = calculate_aepi(epi_value, success_rate)
                             final_validation_ram = get_final_validation_ram_label()
+
+                            if success_rate is None:
+                                aepi_valid_for_save = False
+                                aepi_value = None
+                                st.error(
+                                    "aEPI cannot be calculated because the success-rate input is invalid. "
+                                    "Successful samples must be less than or equal to total samples."
+                                )
+                            elif not final_validation_ram:
+                                aepi_valid_for_save = False
+                                aepi_value = None
+                                st.error(
+                                    "aEPI requires at least one workflow step so the final validation RAM can be assigned."
+                                )
+                            else:
+                                aepi_value = calculate_aepi(epi_value, success_rate)
                         else:
                             success_rate = None
                             aepi_value = None
@@ -1106,11 +1152,11 @@ with st.sidebar:
                             "Labor_Cost(USD)": lab_c,
                             "Total_Cost(USD)": mat_c + lab_c,
                             "EPI": epi_value,
-                            "Successful_Samples": st.session_state.wf_successful_samples if st.session_state.use_aepi else "",
-                            "Total_Samples": st.session_state.wf_total_samples if st.session_state.use_aepi else "",
-                            "Empirical_Success_Rate": round(success_rate, 4) if success_rate is not None else "",
-                            "Final_Validation_RAM": final_validation_ram,
-                            "aEPI": round(aepi_value, 2) if aepi_value is not None else "",
+                            "Successful_Samples": st.session_state.wf_successful_samples if (st.session_state.use_aepi and aepi_valid_for_save) else "",
+                            "Total_Samples": st.session_state.wf_total_samples if (st.session_state.use_aepi and aepi_valid_for_save) else "",
+                            "Empirical_Success_Rate": round(success_rate, 4) if (st.session_state.use_aepi and aepi_valid_for_save and success_rate is not None) else "",
+                            "Final_Validation_RAM": final_validation_ram if (st.session_state.use_aepi and aepi_valid_for_save) else "",
+                            "aEPI": round(aepi_value, 2) if (st.session_state.use_aepi and aepi_valid_for_save and aepi_value is not None) else "",
                             "access_code": current_code
                         }
 
@@ -1123,7 +1169,7 @@ with st.sidebar:
                             if current_code == stored_code or current_code == MASTER_CODE:
                                 st.warning(f"⚠️ A workflow named '{st.session_state.wf_name}' already exists.")
                                 if st.button("💾 Yes, Overwrite it", width='stretch', type="primary",
-                                             disabled=(not all_valid) or st.session_state.is_saving_workflow,
+                                             disabled=(not all_valid) or (not aepi_valid_for_save) or st.session_state.is_saving_workflow,
                                              key="btn_overwrite_wf"):
                                     st.session_state.is_saving_workflow = True
                                     try:
@@ -1157,7 +1203,7 @@ with st.sidebar:
                                     "🚀 Save as New Workflow",
                                     width="stretch",
                                     type="primary",
-                                    disabled=(not all_valid) or st.session_state.is_saving_workflow,
+                                    disabled=(not all_valid) or (not aepi_valid_for_save) or st.session_state.is_saving_workflow,
                                     key="btn_save_new_wf"
                             ):
                                 st.session_state.is_saving_workflow = True
