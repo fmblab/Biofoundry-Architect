@@ -1380,8 +1380,19 @@ with t1:
                     # Color compatibility icons dynamically based on verification status
                     valid_icon = "✅" if valid else "🚨"
                     error_msg = f"| <span style='color:#ff4b4b;'>{err}</span>" if not valid else ""
-                    st.markdown(f"**Step {i + 1}: {valid_icon} {step['RAM_ID']} - {step['RAM_Name']}** {error_msg}",
-                                unsafe_allow_html=True)
+                    validation_badge = ""
+                    if st.session_state.use_aepi and i == len(st.session_state.workflow) - 1:
+                        validation_badge = (
+                            " <span style='background-color:#DBEAFE; color:#1D4ED8; "
+                            "padding:2px 7px; border-radius:999px; font-size:11px; "
+                            "font-weight:600;'>🧪 Final Validation RAM</span>"
+                        )
+
+                    st.markdown(
+                        f"**Step {i + 1}: {valid_icon} {step['RAM_ID']} - {step['RAM_Name']}**"
+                        f"{validation_badge} {error_msg}",
+                        unsafe_allow_html=True
+                    )
                     st.caption(f"In: {step.get('input_display', 'None')} | Out: {step.get('output_display', 'None')}")
                     st.caption(
                         f"🤖 **Robot:** {step.get('Robot', 'None')} | 🛠️ **Device:** {step.get('Functional_Device', 'None')}")
