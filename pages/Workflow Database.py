@@ -45,9 +45,17 @@ back_to_top_html = """
 # ==========================================
 
 def safe_eval_list(val):
-    """Safely parse list-like or JSON strings into python objects"""
-    if isinstance(val, (list, dict)):
+    """Safely parse list-like or JSON strings into python objects.
+
+    This function also handles legacy/double-encoded JSON strings produced by
+    older workflow exports, e.g. '"[{\"Type\": ...}]"'.
+    It always returns a list for downstream iteration.
+    """
+    if isinstance(val, list):
         return val
+
+    if isinstance(val, dict):
+        return [val]
 
     if val is None:
         return []
@@ -58,20 +66,59 @@ def safe_eval_list(val):
     try:
         if pd.isna(val):
             return []
-    except ValueError:
-        return []
+    except (TypeError, ValueError):
+        pass
 
     val_str = str(val).strip()
     if val_str in ["", "[]", "nan", "NaN", "None"]:
         return []
 
-    try:
-        return json.loads(val_str.replace("'", '"'))
-    except:
+    # Some old records store JSON arrays as escaped JSON strings. Try a few
+    # decode passes until the value becomes a native list/dict or no longer
+    # changes.
+    current = val_str
+    for _ in range(3):
         try:
-            return ast.literal_eval(val_str)
-        except:
-            return []
+            parsed = json.loads(current)
+        except Exception:
+            try:
+                parsed = ast.literal_eval(current)
+            except Exception:
+                break
+
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return [parsed]
+        if isinstance(parsed, str) and parsed.strip() != current:
+            current = parsed.strip()
+            if current in ["", "[]", "nan", "NaN", "None"]:
+                return []
+            continue
+        break
+
+    return []
+
+
+def normalize_step_record(step):
+    """Return a workflow step as a dict with native list io/material fields."""
+    if not isinstance(step, dict):
+        return None
+
+    step_copy = step.copy()
+    step_copy["io_data"] = [d for d in safe_eval_list(step_copy.get("io_data", "[]")) if isinstance(d, dict)]
+    step_copy["material_data"] = [m for m in safe_eval_list(step_copy.get("material_data", "[]")) if isinstance(m, dict)]
+    return step_copy
+
+
+def normalize_workflow_steps(steps):
+    """Parse and filter workflow steps so all downstream code receives dict records."""
+    normalized = []
+    for step in safe_eval_list(steps):
+        step_copy = normalize_step_record(step)
+        if step_copy is not None:
+            normalized.append(step_copy)
+    return normalized
 
 
 def to_float(val):
@@ -140,15 +187,7 @@ def clean_json_value(value):
 
 def parse_nested_workflow_steps(steps):
     """Parse nested I/O and material strings inside each workflow step for structured JSON export."""
-    parsed_steps = []
-    for step in safe_eval_list(steps):
-        if not isinstance(step, dict):
-            continue
-        step_copy = step.copy()
-        step_copy["io_data"] = safe_eval_list(step_copy.get("io_data", "[]"))
-        step_copy["material_data"] = safe_eval_list(step_copy.get("material_data", "[]"))
-        parsed_steps.append(clean_json_value(step_copy))
-    return parsed_steps
+    return [clean_json_value(step) for step in normalize_workflow_steps(steps)]
 
 
 def build_structured_workflow_json(row, use_aepi_flag):
@@ -192,17 +231,34 @@ def ram_natural_sort_key(id_series):
 
 
 def refresh_ram_metadata(ram_dict):
-    """Enriches individual RAM dictionary with parsed I/O markup displays"""
-    io_list = safe_eval_list(ram_dict.get('io_data', '[]'))
+    """Enrich individual RAM/step dictionary with parsed I/O displays.
+
+    Legacy workflow records may contain nested JSON strings. This function
+    normalizes them and ignores malformed non-dictionary records so that the
+    database page does not crash while rendering old or edited workflows.
+    """
+    if not isinstance(ram_dict, dict):
+        ram_dict = {}
+
+    io_list = [d for d in safe_eval_list(ram_dict.get('io_data', '[]')) if isinstance(d, dict)]
+    ram_dict['io_data'] = io_list
+
+    if 'material_data' in ram_dict:
+        ram_dict['material_data'] = [m for m in safe_eval_list(ram_dict.get('material_data', '[]')) if isinstance(m, dict)]
 
     def get_essentials(io_type):
-        return [d for d in io_list if str(d.get('Type', '')).lower() == io_type.lower() and (
-                d.get('Essential') is True or str(d.get('Essential')).lower() == 'true')]
+        return [
+            d for d in io_list
+            if str(d.get('Type', '')).lower() == io_type.lower()
+            and (d.get('Essential') is True or str(d.get('Essential')).lower() == 'true')
+        ]
 
     def make_label(essentials):
         labels = [
             f"{d.get('Substance', 'Unknown')}:**({str(d.get('Classification') or d.get('Substance Class') or 'Unknown').replace('Universal', 'Generic')})** in `{d.get('Vessel') or 'None'}`"
-            for d in essentials]
+            for d in essentials
+            if isinstance(d, dict)
+        ]
         return ", ".join(labels) if labels else "None"
 
     in_ess, out_ess = get_essentials('input'), get_essentials('output')
@@ -408,7 +464,7 @@ with col_detail:
         "📝 Overview & Analysis", "⚙️ Steps", "📦 Materials", "🔄 Loop Simulation", "🛠️ Manage", "📤 Export"
     ])
 
-    steps_list = safe_eval_list(row.get('Steps_RAMList', '[]'))
+    steps_list = normalize_workflow_steps(row.get('Steps_RAMList', '[]'))
 
     # --- TAB 1: Overview & Analysis ---
     with t_analytics:
@@ -575,6 +631,8 @@ with col_detail:
                 s_id = s.get('id', 'Unknown')
                 s_mats = safe_eval_list(s.get('material_data', '[]'))
                 for m in s_mats:
+                    if not isinstance(m, dict):
+                        continue
                     m_item = m.copy()
                     m_item['Source_RAM'] = s_id  # Inject step mapping dependency
                     all_mats_preview.append(m_item)
@@ -583,6 +641,8 @@ with col_detail:
         if not all_mats_preview:
             legacy_mats = safe_eval_list(row.get('Material_Summary', '[]'))
             for m in legacy_mats:
+                if not isinstance(m, dict):
+                    continue
                 m_item = m.copy()
                 if 'Source_RAM' not in m_item:
                     m_item['Source_RAM'] = "Legacy"
@@ -679,7 +739,8 @@ with col_detail:
                     if 'op_time' in s: ram_d['Operation_Time(h)'] = to_float(s['op_time'])
                     if 'ho_time' in s: ram_d['Hands_on_Time(h)'] = to_float(s['ho_time'])
                     if 'mat_cost' in s: ram_d['Total_Material_Cost(USD)'] = to_float(s['mat_cost'])
-                    if 'io_data' in s: ram_d['io_data'] = s['io_data']
+                    if 'io_data' in s: ram_d['io_data'] = [d for d in safe_eval_list(s.get('io_data', '[]')) if isinstance(d, dict)]
+                    if 'material_data' in s: ram_d['material_data'] = [m for m in safe_eval_list(s.get('material_data', '[]')) if isinstance(m, dict)]
 
                     ram_d = refresh_ram_metadata(ram_d)
                     reconstructed_wf.append(ram_d)
@@ -913,6 +974,8 @@ with col_detail:
                     s_id = s.get('id', 'Unknown')
                     s_mats = safe_eval_list(s.get('material_data', '[]'))
                     for m in s_mats:
+                        if not isinstance(m, dict):
+                            continue
                         m_item = m.copy()
                         m_item['Source_RAM'] = s_id
                         m_item['Total Price'] = to_float(str(m_item.get('Total Price', '0')).replace(',', ''))
