@@ -822,23 +822,34 @@ with comp_tab:
                                 f"🛠️ Device: {short_workflow_name(step_row.get('Functional Device', 'None'), 34)}"
                             )
 
+                            # Show the pairwise delta only on the higher-value workflow card.
+                            # This avoids showing the same increase message on both workflows.
                             delta_parts = []
                             ram_delta_row = ram_delta_df_for_cards[ram_delta_df_for_cards['RAM ID'].astype(str) == ram_id]
                             if not ram_delta_row.empty:
                                 delta_info = ram_delta_row.iloc[0]
-                                if abs(delta_info['Δ Time (h)']) > 1e-9:
+                                current_wf = str(wf)
+
+                                if (
+                                    abs(delta_info['Δ Time (h)']) > 1e-9
+                                    and str(delta_info['Max Time Workflow']) == current_wf
+                                ):
                                     delta_parts.append(
                                         f"Time: {delta_info['Min Time (h)']:.2f} h → {delta_info['Max Time (h)']:.2f} h "
                                         f"(Δ +{delta_info['Δ Time (h)']:.2f} h)"
                                     )
-                                if abs(delta_info['Δ Cost (USD)']) > 1e-9:
+
+                                if (
+                                    abs(delta_info['Δ Cost (USD)']) > 1e-9
+                                    and str(delta_info['Max Cost Workflow']) == current_wf
+                                ):
                                     delta_parts.append(
                                         f"Cost: ${delta_info['Min Cost (USD)']:,.2f} → ${delta_info['Max Cost (USD)']:,.2f} "
                                         f"(Δ +${delta_info['Δ Cost (USD)']:,.2f})"
                                     )
 
                             if delta_parts:
-                                st.warning("Pairwise difference: " + " | ".join(delta_parts), icon="🔎")
+                                st.warning("Pairwise increase: " + " | ".join(delta_parts), icon="🔎")
 
                             st.caption(f"In: {in_disp} | Out: {out_disp}")
 
