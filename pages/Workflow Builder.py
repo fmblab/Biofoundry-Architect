@@ -203,6 +203,40 @@ def normalize_material_items(val):
     return ensure_list_of_dicts(val)
 
 
+def normalize_equipment_field(value):
+    """
+    Normalize Robot / Functional_Device fields for safe in-memory and spreadsheet storage.
+    Equipment is stored as a plain comma-separated string, not as nested JSON, to avoid
+    double-encoding while still supporting legacy list-like values.
+    """
+    if value is None:
+        return "None"
+
+    if isinstance(value, float) and math.isnan(value):
+        return "None"
+
+    # Recover legacy list-like values such as ["RoMa"] or "['RoMa', 'LiHa']".
+    parsed = safe_eval_list(value)
+    if isinstance(parsed, dict):
+        items = [str(v).strip() for v in parsed.values() if str(v).strip()]
+    elif isinstance(parsed, list) and parsed:
+        items = [str(v).strip() for v in parsed if str(v).strip()]
+    else:
+        text = str(value).strip()
+        if text in ["", "[]", "nan", "NaN", "None", "null"]:
+            return "None"
+        # Allow users to type comma/semicolon-separated hardware names.
+        items = [x.strip() for x in re.split(r"[,;]", text) if x.strip()]
+
+    cleaned = []
+    for item in items:
+        if item in ["", "[]", "nan", "NaN", "None", "null"]:
+            continue
+        cleaned.append(item)
+
+    return ", ".join(cleaned) if cleaned else "None"
+
+
 def normalize_step_record(step):
     """Normalize a workflow step loaded from WorkflowDB before use in Builder."""
     if not isinstance(step, dict):
@@ -210,6 +244,8 @@ def normalize_step_record(step):
     step_copy = step.copy()
     step_copy['io_data'] = ensure_list_of_dicts(step_copy.get('io_data', '[]'))
     step_copy['material_data'] = normalize_material_items(step_copy.get('material_data', '[]'))
+    step_copy['Robot'] = normalize_equipment_field(step_copy.get('Robot', 'None'))
+    step_copy['Functional_Device'] = normalize_equipment_field(step_copy.get('Functional_Device', 'None'))
     return step_copy
 
 
@@ -303,6 +339,8 @@ def refresh_ram_metadata(ram_dict):
     # 2. Restore material_data (no issue here)
     mat_list = normalize_material_items(ram_dict.get('material_data', '[]'))
     ram_dict['material_data'] = mat_list
+    ram_dict['Robot'] = normalize_equipment_field(ram_dict.get('Robot', 'None'))
+    ram_dict['Functional_Device'] = normalize_equipment_field(ram_dict.get('Functional_Device', 'None'))
 
     # --- Internal Helpers ---
     def get_essentials(io_type):
@@ -403,6 +441,11 @@ def load_combined_db():
         for col in num_cols:
             if col in combined.columns:
                 combined[col] = combined[col].apply(to_float)
+
+        for col in ['Robot', 'Functional_Device']:
+            if col not in combined.columns:
+                combined[col] = 'None'
+            combined[col] = combined[col].apply(normalize_equipment_field)
 
         # Reconstruct RAM objects with metadata enrichment
         updated = [refresh_ram_metadata(row.to_dict()) for _, row in combined.iterrows()]
@@ -512,9 +555,11 @@ if 'edit_workflow_target' in st.session_state:
                 if 'op_time' in s: ram_dict['Operation_Time(h)'] = s['op_time']
                 if 'ho_time' in s: ram_dict['Hands_on_Time(h)'] = s['ho_time']
                 if 'mat_cost' in s: ram_dict['Total_Material_Cost(USD)'] = s['mat_cost']
-                if 'io_data' in s: ram_dict['io_data'] = safe_eval_list(s['io_data'])  # Parse back as native list!
-                if 'material_data' in s: ram_dict['material_data'] = safe_eval_list(
+                if 'io_data' in s: ram_dict['io_data'] = ensure_list_of_dicts(s['io_data'])  # Parse back as native list!
+                if 'material_data' in s: ram_dict['material_data'] = normalize_material_items(
                     s['material_data'])  # Parse back as native list!
+                if 'Robot' in s: ram_dict['Robot'] = normalize_equipment_field(s.get('Robot', 'None'))
+                if 'Functional_Device' in s: ram_dict['Functional_Device'] = normalize_equipment_field(s.get('Functional_Device', 'None'))
 
                 reconstructed.append(refresh_ram_metadata(ram_dict))
         st.session_state.workflow = reconstructed
@@ -572,6 +617,22 @@ def edit_ram_dialog(index):
     col1, col2 = st.columns(2)
     e_name = col1.text_input("RAM Name", value=ram.get('RAM_Name', ''), key=f"nm_{index}")
     e_purpose = col2.text_input("Purpose", value=ram.get('Purpose', ''), key=f"pp_{index}")
+
+    st.markdown("#### 🤖 Step-specific Hardware")
+    hw1, hw2 = st.columns(2)
+    e_robot = hw1.text_input(
+        "Robot",
+        value=normalize_equipment_field(ram.get('Robot', 'None')),
+        key=f"robot_edit_{index}",
+        help="Edit the robot configuration for this workflow step. Use comma-separated names for multiple robots."
+    )
+    e_device = hw2.text_input(
+        "Functional Device",
+        value=normalize_equipment_field(ram.get('Functional_Device', 'None')),
+        key=f"device_edit_{index}",
+        help="Edit the functional device configuration for this workflow step. Use comma-separated names for multiple devices."
+    )
+    st.caption("These hardware edits are preserved in the workflow step record. Use database overwrite/save-as-new only when the RAM database itself should also be updated.")
 
     st.divider()
     st.markdown("#### 🧪 Substance I/O Management")
@@ -680,8 +741,10 @@ def edit_ram_dialog(index):
         updated.update({
             'RAM_Name': e_name,
             'Purpose': e_purpose,
-            'io_data': st.session_state[io_key],  # Keep as native list in state!
-            'material_data': st.session_state[mat_key],  # Keep as native list in state!
+            'Robot': normalize_equipment_field(e_robot),
+            'Functional_Device': normalize_equipment_field(e_device),
+            'io_data': ensure_list_of_dicts(st.session_state[io_key]),  # Keep as native list in state!
+            'material_data': normalize_material_items(st.session_state[mat_key]),  # Keep as native list in state!
             'Sample_Capacity': e_cap,
             'Operation_Time(h)': to_float(e_opt),
             'Hands_on_Time(h)': to_float(e_hot),
@@ -735,8 +798,10 @@ def edit_ram_dialog(index):
                     updated.update({
                         'RAM_Name': e_name,
                         'Purpose': e_purpose,
-                        'io_data': st.session_state[io_key],
-                        'material_data': st.session_state[mat_key],
+                        'Robot': normalize_equipment_field(e_robot),
+                        'Functional_Device': normalize_equipment_field(e_device),
+                        'io_data': ensure_list_of_dicts(st.session_state[io_key]),
+                        'material_data': normalize_material_items(st.session_state[mat_key]),
                         'Sample_Capacity': e_cap,
                         'Operation_Time(h)': to_float(e_opt),
                         'Hands_on_Time(h)': to_float(e_hot),
@@ -746,9 +811,11 @@ def edit_ram_dialog(index):
 
                     # Filter and serialize strictly for GSheet connection to block double-escaping
                     clean_row = {k: v for k, v in updated.items() if k in official_columns}
-                    clean_io = normalize_io_keys(st.session_state[io_key])
-                    clean_row['io_data'] = json.dumps(clean_io)
-                    clean_row['material_data'] = json.dumps(st.session_state[mat_key])
+                    clean_io = normalize_io_keys(ensure_list_of_dicts(st.session_state[io_key]))
+                    clean_row['Robot'] = normalize_equipment_field(e_robot)
+                    clean_row['Functional_Device'] = normalize_equipment_field(e_device)
+                    clean_row['io_data'] = json.dumps(clean_io, ensure_ascii=False)
+                    clean_row['material_data'] = json.dumps(normalize_material_items(st.session_state[mat_key]), ensure_ascii=False)
 
                     db_ws = "RAM_MasterDB" if e_code == MASTER_CODE else "RAM_UserDB"
                     db = conn.read(spreadsheet=MY_SHEET_URL, worksheet=db_ws, ttl=0)
@@ -801,8 +868,10 @@ def edit_ram_dialog(index):
                         new_ram.update({
                             'RAM_ID': new_id,
                             'RAM_Name': e_name,
-                            'io_data': st.session_state[io_key],
-                            'material_data': st.session_state[mat_key],
+                            'Robot': normalize_equipment_field(e_robot),
+                            'Functional_Device': normalize_equipment_field(e_device),
+                            'io_data': ensure_list_of_dicts(st.session_state[io_key]),
+                            'material_data': normalize_material_items(st.session_state[mat_key]),
                             'Sample_Capacity': e_cap,
                             'Operation_Time(h)': to_float(e_opt),
                             'Hands_on_Time(h)': to_float(e_hot),
@@ -813,9 +882,11 @@ def edit_ram_dialog(index):
 
                         # Filter and serialize strictly for GSheet connection to block double-escaping
                         clean_row = {k: v for k, v in new_ram.items() if k in official_columns}
-                        clean_io = normalize_io_keys(st.session_state[io_key])
-                        clean_row['io_data'] = json.dumps(clean_io)
-                        clean_row['material_data'] = json.dumps(st.session_state[mat_key])
+                        clean_io = normalize_io_keys(ensure_list_of_dicts(st.session_state[io_key]))
+                        clean_row['Robot'] = normalize_equipment_field(e_robot)
+                        clean_row['Functional_Device'] = normalize_equipment_field(e_device)
+                        clean_row['io_data'] = json.dumps(clean_io, ensure_ascii=False)
+                        clean_row['material_data'] = json.dumps(normalize_material_items(st.session_state[mat_key]), ensure_ascii=False)
 
                         db_ws = "RAM_MasterDB" if e_code == MASTER_CODE else "RAM_UserDB"
                         db = conn.read(spreadsheet=MY_SHEET_URL, worksheet=db_ws, ttl=0)
@@ -983,6 +1054,10 @@ with st.sidebar:
                             ram_dict['Hands_on_Time(h)'] = to_float(s['ho_time'])
                         if 'mat_cost' in s:
                             ram_dict['Total_Material_Cost(USD)'] = to_float(s['mat_cost'])
+                        if 'Robot' in s:
+                            ram_dict['Robot'] = normalize_equipment_field(s.get('Robot', 'None'))
+                        if 'Functional_Device' in s:
+                            ram_dict['Functional_Device'] = normalize_equipment_field(s.get('Functional_Device', 'None'))
 
                         ram_dict = refresh_ram_metadata(ram_dict)
                         reconstructed.append(ram_dict)
@@ -1184,8 +1259,8 @@ with st.sidebar:
                                 "mat_cost": to_float(s.get('Total_Material_Cost(USD)', 0)),
                                 "io_data": ensure_list_of_dicts(s.get('io_data', '[]')),
                                 "material_data": normalize_material_items(s.get('material_data', '[]')),
-                                "Robot": s.get('Robot', 'None'),
-                                "Functional_Device": s.get('Functional_Device', 'None')
+                                "Robot": normalize_equipment_field(s.get('Robot', 'None')),
+                                "Functional_Device": normalize_equipment_field(s.get('Functional_Device', 'None'))
                             } for i, s in enumerate(st.session_state.workflow)]),
                             "Turnaround_Time(h)": tat,
                             "Operation_Time(h)": wf_df_tmp['Operation_Time(h)'].sum(),
@@ -1441,7 +1516,8 @@ with t1:
                     )
                     st.caption(f"In: {step.get('input_display', 'None')} | Out: {step.get('output_display', 'None')}")
                     st.caption(
-                        f"🤖 **Robot:** {step.get('Robot', 'None')} | 🛠️ **Device:** {step.get('Functional_Device', 'None')}")
+                        f"🤖 **Robot:** {normalize_equipment_field(step.get('Robot', 'None'))} | "
+                        f"🛠️ **Device:** {normalize_equipment_field(step.get('Functional_Device', 'None'))}")
                 with cb:
                     bc = st.columns(4)
                     if bc[0].button("↑", key=f"u_{i}", width='stretch'):
