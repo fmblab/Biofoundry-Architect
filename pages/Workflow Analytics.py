@@ -563,7 +563,7 @@ if filtered_pool.empty:
 # 4. Main View: Category-Restricted Selection
 # ==========================================
 st.subheader(f"📋 Workflow List: {selected_category}")
-st.caption("Select exactly two workflows from the same category for detailed pairwise comparison.")
+st.caption("Select one or more workflows from the same category for metric comparison. Detailed RAM-level tabs require exactly two selected workflows.")
 
 search_query = st.text_input("🔍 Search Workflow", placeholder="Search by name or author...")
 if search_query:
@@ -607,22 +607,22 @@ selected_indices = selection_event.selection.rows
 # ==========================================
 if not selected_indices:
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.info("💡 **Please select exactly two workflows from the table above to begin detailed pairwise comparison.**")
+    st.info("💡 **Please select one or more workflows from the table above to view metric comparisons.**")
     st.stop()
 
-if len(selected_indices) > 2:
-    st.error("⚠️ **Selection Limit Reached.** Detailed comparison supports exactly **two** workflows. Please deselect extra workflows.")
-    st.stop()
-
+# Summary comparison can include any number of workflows.
+# Detailed RAM-level, breakdown, equipment, and consumable analyses remain pairwise.
 compare_df = filtered_pool.iloc[selected_indices].copy().reset_index(drop=True)
+pairwise_ready = len(compare_df) == 2
 
-if len(compare_df) < 2:
-    st.info("Please select one more workflow to compare. Detailed RAM-level comparison is designed as a pairwise analysis.")
-    st.stop()
-
-step_df = build_stepwise_dataframe(compare_df)
-material_df = build_material_dataframe(compare_df)
-equipment_df = build_equipment_dataframe(step_df)
+if pairwise_ready:
+    step_df = build_stepwise_dataframe(compare_df)
+    material_df = build_material_dataframe(compare_df)
+    equipment_df = build_equipment_dataframe(step_df)
+else:
+    step_df = pd.DataFrame()
+    material_df = pd.DataFrame()
+    equipment_df = pd.DataFrame()
 
 st.divider()
 st.subheader("📈 Category-based Comparison")
@@ -648,6 +648,14 @@ summary_df = pd.DataFrame(summary_records)
 show_aepi = summary_df['aEPI'].notna().any()
 if not show_aepi:
     st.caption("aEPI is optional and is shown as N/A when empirical success-rate data were not saved.")
+
+if pairwise_ready:
+    st.caption("Detailed RAM-level tabs use the two selected workflows as the pairwise comparison set.")
+else:
+    st.info(
+        "Summary Comparison supports multiple selected workflows. "
+        "Select exactly two workflows to enable RAM Composition, Time & Cost Breakdown, and Equipment & Consumables tabs."
+    )
 
 st.dataframe(
     summary_df,
@@ -732,12 +740,17 @@ with summary_tab:
 # Tab 2. RAM Composition
 # ==========================================
 with comp_tab:
-    st.markdown("### 🧬 Workflow Sequence Comparison")
-    if step_df.empty:
+    st.markdown("### 🧬 Changed RAM Comparison")
+    if not pairwise_ready:
+        st.info(
+            "RAM Composition is a pairwise analysis. Select exactly two workflows to identify changed RAMs."
+        )
+    elif step_df.empty:
         st.info("No step-level RAM data are available for the selected workflows.")
     else:
         st.caption(
-            "Workflow sequences are shown as compact RAM cards. Shared RAMs with changed time or cost are highlighted so implementation changes are easier to identify."
+            "Only shared RAMs with changed time or cost are shown below, so differences are visible at a glance. "
+            "The full step alignment matrix is available in the expander."
         )
 
         ram_delta_df_for_cards = build_ram_delta_dataframe(step_df)
@@ -755,108 +768,81 @@ with comp_tab:
                 ram_min_cost[str(r['RAM ID'])] = to_float(r.get('Min Cost (USD)', 0))
 
         total_shared = len(ram_delta_df_for_cards) if not ram_delta_df_for_cards.empty else 0
-        st.info(f"Changed shared RAMs detected: **{len(changed_ram_ids)} / {total_shared}**" if total_shared else "No shared RAMs were detected among the selected workflows.")
+        st.info(
+            f"Changed shared RAMs detected: **{len(changed_ram_ids)} / {total_shared}**"
+            if total_shared else
+            "No shared RAMs were detected among the selected workflows."
+        )
 
-        # Pairwise workflow sequence cards
-        wf_groups = list(step_df.sort_values(['Workflow', 'Step']).groupby('Workflow', sort=False))
-        seq_cols = st.columns(2)
-        for col, (wf, group) in zip(seq_cols, wf_groups[:2]):
-            with col:
-                st.markdown(f"#### 🧬 {short_workflow_name(wf, 60)}")
-                for _, step_row in group.sort_values('Step').iterrows():
-                    ram_id = str(step_row['RAM ID'])
-                    raw_step = step_row.get('Raw Step', {}) if isinstance(step_row.get('Raw Step', {}), dict) else {}
-                    in_disp, out_disp = io_display_from_step(raw_step)
+        if not changed_ram_ids:
+            st.success(
+                "No changed shared RAMs were detected. The selected workflows have identical step-level time and cost values for shared RAMs."
+            )
+        else:
+            wf_groups = list(step_df.sort_values(['Workflow', 'Step']).groupby('Workflow', sort=False))
+            seq_cols = st.columns(2)
+            for col, (wf, group) in zip(seq_cols, wf_groups[:2]):
+                changed_group = group[group['RAM ID'].astype(str).isin(changed_ram_ids)].sort_values('Step')
+                with col:
+                    st.markdown(f"#### 🧬 {short_workflow_name(wf, 60)}")
+                    if changed_group.empty:
+                        st.caption("No changed shared RAMs in this workflow.")
+                        continue
 
-                    time_delta = step_row['Total Time (h)'] - ram_min_time.get(ram_id, step_row['Total Time (h)'])
-                    cost_delta = step_row['Total Cost (USD)'] - ram_min_cost.get(ram_id, step_row['Total Cost (USD)'])
+                    for _, step_row in changed_group.iterrows():
+                        ram_id = str(step_row['RAM ID'])
+                        raw_step = step_row.get('Raw Step', {}) if isinstance(step_row.get('Raw Step', {}), dict) else {}
+                        in_disp, out_disp = io_display_from_step(raw_step)
 
-                    badges = []
-                    if step_row.get('Is Final Validation RAM', False):
-                        badges.append(
-                            "<span style='background-color:#DBEAFE; color:#1D4ED8; padding:2px 7px; "
-                            "border-radius:999px; font-size:11px; font-weight:600;'>🧪 Final Validation RAM</span>"
-                        )
-                    if ram_id in changed_ram_ids:
+                        time_delta = step_row['Total Time (h)'] - ram_min_time.get(ram_id, step_row['Total Time (h)'])
+                        cost_delta = step_row['Total Cost (USD)'] - ram_min_cost.get(ram_id, step_row['Total Cost (USD)'])
+
+                        badges = []
+                        if step_row.get('Is Final Validation RAM', False):
+                            badges.append(
+                                "<span style='background-color:#DBEAFE; color:#1D4ED8; padding:2px 7px; "
+                                "border-radius:999px; font-size:11px; font-weight:600;'>🧪 Final Validation RAM</span>"
+                            )
                         badges.append(
                             "<span style='background-color:#FEF3C7; color:#92400E; padding:2px 7px; "
                             "border-radius:999px; font-size:11px; font-weight:600;'>Changed</span>"
                         )
-                    badge_html = " ".join(badges)
+                        badge_html = " ".join(badges)
 
-                    with st.container(border=True):
-                        st.markdown(
-                            f"**Step {int(step_row['Step'])}: {ram_id} - {step_row['RAM Name']}** {badge_html}",
-                            unsafe_allow_html=True
-                        )
-                        c1, c2 = st.columns(2)
-                        c1.markdown(f"**Time:** {step_row['Total Time (h)']:.2f} h")
-                        c2.markdown(f"**Cost:** ${step_row['Total Cost (USD)']:,.2f}")
-                        st.caption(
-                            f"🤖 Robot: {short_workflow_name(step_row.get('Robot', 'None'), 34)} | "
-                            f"🛠️ Device: {short_workflow_name(step_row.get('Functional Device', 'None'), 34)}"
-                        )
+                        with st.container(border=True):
+                            st.markdown(
+                                f"**Step {int(step_row['Step'])}: {ram_id} - {step_row['RAM Name']}** {badge_html}",
+                                unsafe_allow_html=True
+                            )
+                            c1, c2 = st.columns(2)
+                            c1.markdown(f"**Time:** {step_row['Total Time (h)']:.2f} h")
+                            c2.markdown(f"**Cost:** ${step_row['Total Cost (USD)']:,.2f}")
+                            st.caption(
+                                f"🤖 Robot: {short_workflow_name(step_row.get('Robot', 'None'), 34)} | "
+                                f"🛠️ Device: {short_workflow_name(step_row.get('Functional Device', 'None'), 34)}"
+                            )
 
-                        if time_delta > 1e-9 or cost_delta > 1e-9:
                             delta_parts = []
-                            comparison_notes = []
                             ram_delta_row = ram_delta_df_for_cards[ram_delta_df_for_cards['RAM ID'].astype(str) == ram_id]
                             if not ram_delta_row.empty:
                                 delta_info = ram_delta_row.iloc[0]
-                                if time_delta > 1e-9:
-                                    delta_parts.append(f"Time +{time_delta:.2f} h")
-                                    comparison_notes.append(
-                                        f"Time: {short_workflow_name(delta_info['Min Time Workflow'], 28)} "
-                                        f"({delta_info['Min Time (h)']:.2f} h) → "
-                                        f"{short_workflow_name(delta_info['Max Time Workflow'], 28)} "
-                                        f"({delta_info['Max Time (h)']:.2f} h)"
+                                if abs(delta_info['Δ Time (h)']) > 1e-9:
+                                    delta_parts.append(
+                                        f"Time: {delta_info['Min Time (h)']:.2f} h → {delta_info['Max Time (h)']:.2f} h "
+                                        f"(Δ +{delta_info['Δ Time (h)']:.2f} h)"
                                     )
-                                if cost_delta > 1e-9:
-                                    delta_parts.append(f"Cost +${cost_delta:,.2f}")
-                                    comparison_notes.append(
-                                        f"Cost: {short_workflow_name(delta_info['Min Cost Workflow'], 28)} "
-                                        f"(${delta_info['Min Cost (USD)']:,.2f}) → "
-                                        f"{short_workflow_name(delta_info['Max Cost Workflow'], 28)} "
-                                        f"(${delta_info['Max Cost (USD)']:,.2f})"
+                                if abs(delta_info['Δ Cost (USD)']) > 1e-9:
+                                    delta_parts.append(
+                                        f"Cost: ${delta_info['Min Cost (USD)']:,.2f} → ${delta_info['Max Cost (USD)']:,.2f} "
+                                        f"(Δ +${delta_info['Δ Cost (USD)']:,.2f})"
                                     )
-                            else:
-                                if time_delta > 1e-9:
-                                    delta_parts.append(f"Time +{time_delta:.2f} h")
-                                if cost_delta > 1e-9:
-                                    delta_parts.append(f"Cost +${cost_delta:,.2f}")
 
-                            st.warning("Compared with the lower-value implementation: " + " | ".join(delta_parts), icon="🔎")
+                            if delta_parts:
+                                st.warning("Pairwise difference: " + " | ".join(delta_parts), icon="🔎")
 
-                        st.caption(f"In: {in_disp} | Out: {out_disp}")
+                            st.caption(f"In: {in_disp} | Out: {out_disp}")
 
-        st.divider()
-        st.markdown("#### Shared and Workflow-specific RAMs")
-        workflow_ram_sets = {
-            wf: set(group['RAM ID'].dropna().astype(str).tolist())
-            for wf, group in step_df.groupby('Workflow')
-        }
-
-        if workflow_ram_sets:
-            shared_rams = set.intersection(*workflow_ram_sets.values()) if len(workflow_ram_sets) > 1 else list(workflow_ram_sets.values())[0]
-            s1, s2 = st.columns(2)
-            with s1:
-                st.info(f"**Shared RAM IDs:** {', '.join(sorted(shared_rams)) if shared_rams else 'None'}")
-            with s2:
-                step_count_df = step_df.groupby('Workflow').agg(
-                    Steps=('Step', 'max'),
-                    Unique_RAMs=('RAM ID', 'nunique')
-                ).reset_index()
-                st.dataframe(step_count_df, hide_index=True, width='stretch')
-
-            unique_records = []
-            for wf, ram_set in workflow_ram_sets.items():
-                other_rams = set.union(*(s for k, s in workflow_ram_sets.items() if k != wf)) if len(workflow_ram_sets) > 1 else set()
-                unique = sorted(ram_set - other_rams)
-                unique_records.append({"Workflow": wf, "Workflow-specific RAM IDs": ", ".join(unique) if unique else "None"})
-            with st.expander("View workflow-specific RAM table"):
-                st.dataframe(pd.DataFrame(unique_records), hide_index=True, width='stretch')
-
-        with st.expander("View step alignment matrix"):
+        with st.expander("View full step alignment matrix"):
             composition_matrix = step_df.pivot_table(
                 index="Step",
                 columns="Workflow",
@@ -865,249 +851,277 @@ with comp_tab:
             ).sort_index().fillna("—")
             st.dataframe(composition_matrix, width='stretch')
 
+        with st.expander("View shared and workflow-specific RAM summary"):
+            workflow_ram_sets = {
+                wf: set(group['RAM ID'].dropna().astype(str).tolist())
+                for wf, group in step_df.groupby('Workflow')
+            }
+            if workflow_ram_sets:
+                shared_rams = set.intersection(*workflow_ram_sets.values()) if len(workflow_ram_sets) > 1 else list(workflow_ram_sets.values())[0]
+                st.info(f"**Shared RAM IDs:** {', '.join(sorted(shared_rams)) if shared_rams else 'None'}")
+
+                step_count_df = step_df.groupby('Workflow').agg(
+                    Steps=('Step', 'max'),
+                    Unique_RAMs=('RAM ID', 'nunique')
+                ).reset_index()
+                st.dataframe(step_count_df, hide_index=True, width='stretch')
+
+                unique_records = []
+                for wf, ram_set in workflow_ram_sets.items():
+                    other_rams = set.union(*(s for k, s in workflow_ram_sets.items() if k != wf)) if len(workflow_ram_sets) > 1 else set()
+                    unique = sorted(ram_set - other_rams)
+                    unique_records.append({"Workflow": wf, "Workflow-specific RAM IDs": ", ".join(unique) if unique else "None"})
+                st.dataframe(pd.DataFrame(unique_records), hide_index=True, width='stretch')
+
 # ==========================================
 # Tab 3. Time & Cost Breakdown
 # ==========================================
 with breakdown_tab:
-    st.markdown("### ⏱️ Time and Cost Breakdown")
-    if step_df.empty:
-        st.info("No step-level timing or cost data are available for the selected workflows.")
+    if not pairwise_ready:
+        st.info("Time & Cost Breakdown is a pairwise analysis. Select exactly two workflows to use this tab.")
     else:
-        st.markdown("#### 🚨 Bottleneck RAMs")
-        bottleneck_records = []
-        for wf, group in step_df.groupby('Workflow'):
-            t_bn = group.loc[group['Total Time (h)'].idxmax()]
-            c_bn = group.loc[group['Total Cost (USD)'].idxmax()]
-            bottleneck_records.append({
-                "Workflow": wf,
-                "Time Bottleneck RAM": f"{t_bn['RAM ID']} - {t_bn['RAM Name']}",
-                "Time Share (%)": t_bn['Time Share (%)'],
-                "Cost Bottleneck RAM": f"{c_bn['RAM ID']} - {c_bn['RAM Name']}",
-                "Cost Share (%)": c_bn['Cost Share (%)']
-            })
-
-        bottleneck_df = pd.DataFrame(bottleneck_records)
-        for row_start in range(0, len(bottleneck_df), 2):
-            cols = st.columns(min(2, len(bottleneck_df.iloc[row_start:row_start + 2])))
-            for col, (_, r) in zip(cols, bottleneck_df.iloc[row_start:row_start + 2].iterrows()):
-                with col:
-                    with st.container(border=True):
-                        st.markdown(f"##### {short_workflow_name(r['Workflow'], 55)}")
-                        b1, b2 = st.columns(2)
-                        b1.markdown(f"**Time bottleneck**  \n{short_workflow_name(r['Time Bottleneck RAM'], 36)}  \n<span style='color:#047857; font-size:12px;'>↑ {r['Time Share (%)']:.1f}% of TAT</span>", unsafe_allow_html=True)
-                        b2.markdown(f"**Cost bottleneck**  \n{short_workflow_name(r['Cost Bottleneck RAM'], 36)}  \n<span style='color:#047857; font-size:12px;'>↑ {r['Cost Share (%)']:.1f}% of cost</span>", unsafe_allow_html=True)
-
-        st.divider()
-        st.markdown("#### 🔎 Comparable RAM-level Changes")
-        st.caption(
-            "Only shared RAMs with changed time or cost are highlighted here. This is useful when workflows keep the same RAM identity but change implementation mode, such as automated versus manual execution."
-        )
-
-        ram_delta_df = build_ram_delta_dataframe(step_df)
-        if ram_delta_df.empty:
-            st.info("No shared RAMs were available for RAM-level change comparison.")
+        st.markdown("### ⏱️ Time and Cost Breakdown")
+        if step_df.empty:
+            st.info("No step-level timing or cost data are available for the selected workflows.")
         else:
-            changed_delta = ram_delta_df[
-                (ram_delta_df['Δ Time (h)'].abs() > 1e-9)
-                | (ram_delta_df['Δ Cost (USD)'].abs() > 1e-9)
-            ].copy()
+            st.markdown("#### 🚨 Bottleneck RAMs")
+            bottleneck_records = []
+            for wf, group in step_df.groupby('Workflow'):
+                t_bn = group.loc[group['Total Time (h)'].idxmax()]
+                c_bn = group.loc[group['Total Cost (USD)'].idxmax()]
+                bottleneck_records.append({
+                    "Workflow": wf,
+                    "Time Bottleneck RAM": f"{t_bn['RAM ID']} - {t_bn['RAM Name']}",
+                    "Time Share (%)": t_bn['Time Share (%)'],
+                    "Cost Bottleneck RAM": f"{c_bn['RAM ID']} - {c_bn['RAM Name']}",
+                    "Cost Share (%)": c_bn['Cost Share (%)']
+                })
 
-            if changed_delta.empty:
-                st.info("No changed shared RAMs were detected. The selected workflows use shared RAMs with identical step-level time and cost values.")
+            bottleneck_df = pd.DataFrame(bottleneck_records)
+            for row_start in range(0, len(bottleneck_df), 2):
+                cols = st.columns(min(2, len(bottleneck_df.iloc[row_start:row_start + 2])))
+                for col, (_, r) in zip(cols, bottleneck_df.iloc[row_start:row_start + 2].iterrows()):
+                    with col:
+                        with st.container(border=True):
+                            st.markdown(f"##### {short_workflow_name(r['Workflow'], 55)}")
+                            b1, b2 = st.columns(2)
+                            b1.markdown(f"**Time bottleneck**  \n{short_workflow_name(r['Time Bottleneck RAM'], 36)}  \n<span style='color:#047857; font-size:12px;'>↑ {r['Time Share (%)']:.1f}% of TAT</span>", unsafe_allow_html=True)
+                            b2.markdown(f"**Cost bottleneck**  \n{short_workflow_name(r['Cost Bottleneck RAM'], 36)}  \n<span style='color:#047857; font-size:12px;'>↑ {r['Cost Share (%)']:.1f}% of cost</span>", unsafe_allow_html=True)
+
+            st.divider()
+            st.markdown("#### 🔎 Comparable RAM-level Changes")
+            st.caption(
+                "Only shared RAMs with changed time or cost are highlighted here. This is useful when workflows keep the same RAM identity but change implementation mode, such as automated versus manual execution."
+            )
+
+            ram_delta_df = build_ram_delta_dataframe(step_df)
+            if ram_delta_df.empty:
+                st.info("No shared RAMs were available for RAM-level change comparison.")
             else:
-                st.success(f"Changed shared RAMs detected: **{len(changed_delta)} / {len(ram_delta_df)}**")
+                changed_delta = ram_delta_df[
+                    (ram_delta_df['Δ Time (h)'].abs() > 1e-9)
+                    | (ram_delta_df['Δ Cost (USD)'].abs() > 1e-9)
+                ].copy()
 
-                card_df = changed_delta.copy()
-                card_df['Change Score'] = card_df['Δ Time (h)'].abs() + (card_df['Δ Cost (USD)'].abs() / 1000.0)
-                card_df = card_df.sort_values('Change Score', ascending=False).head(6)
+                if changed_delta.empty:
+                    st.info("No changed shared RAMs were detected. The selected workflows use shared RAMs with identical step-level time and cost values.")
+                else:
+                    st.success(f"Changed shared RAMs detected: **{len(changed_delta)} / {len(ram_delta_df)}**")
 
-                for _, r in card_df.iterrows():
-                    with st.container(border=True):
-                        st.markdown(f"##### 🔁 {r['RAM ID']} - {r['RAM Name']}")
-                        c_time, c_cost = st.columns(2)
-                        with c_time:
-                            st.markdown("**Time change**")
-                            st.markdown(f"<div style='font-size:28px; font-weight:650; line-height:1.15;'>+{r['Δ Time (h)']:.2f} h</div>", unsafe_allow_html=True)
-                            st.markdown(f"<span style='font-size:12px; color:#047857; background:#D1FAE5; padding:3px 7px; border-radius:999px;'>{r['Min Time (h)']:.2f} h → {r['Max Time (h)']:.2f} h</span>", unsafe_allow_html=True)
-                            st.caption(f"{short_workflow_name(r['Min Time Workflow'], 40)} → {short_workflow_name(r['Max Time Workflow'], 40)}")
-                        with c_cost:
-                            st.markdown("**Cost change**")
-                            st.markdown(f"<div style='font-size:28px; font-weight:650; line-height:1.15;'>+${r['Δ Cost (USD)']:,.2f}</div>", unsafe_allow_html=True)
-                            st.markdown(f"<span style='font-size:12px; color:#047857; background:#D1FAE5; padding:3px 7px; border-radius:999px;'>${r['Min Cost (USD)']:,.2f} → ${r['Max Cost (USD)']:,.2f}</span>", unsafe_allow_html=True)
-                            st.caption(f"{short_workflow_name(r['Min Cost Workflow'], 40)} → {short_workflow_name(r['Max Cost Workflow'], 40)}")
+                    card_df = changed_delta.copy()
+                    card_df['Change Score'] = card_df['Δ Time (h)'].abs() + (card_df['Δ Cost (USD)'].abs() / 1000.0)
+                    card_df = card_df.sort_values('Change Score', ascending=False).head(6)
 
-        st.divider()
-        time_tab, cost_tab = st.tabs(["⏱️ Time composition", "💰 Cost composition"])
+                    for _, r in card_df.iterrows():
+                        with st.container(border=True):
+                            st.markdown(f"##### 🔁 {r['RAM ID']} - {r['RAM Name']}")
+                            c_time, c_cost = st.columns(2)
+                            with c_time:
+                                st.markdown("**Time change**")
+                                st.markdown(f"<div style='font-size:28px; font-weight:650; line-height:1.15;'>+{r['Δ Time (h)']:.2f} h</div>", unsafe_allow_html=True)
+                                st.markdown(f"<span style='font-size:12px; color:#047857; background:#D1FAE5; padding:3px 7px; border-radius:999px;'>{r['Min Time (h)']:.2f} h → {r['Max Time (h)']:.2f} h</span>", unsafe_allow_html=True)
+                                st.caption(f"{short_workflow_name(r['Min Time Workflow'], 40)} → {short_workflow_name(r['Max Time Workflow'], 40)}")
+                            with c_cost:
+                                st.markdown("**Cost change**")
+                                st.markdown(f"<div style='font-size:28px; font-weight:650; line-height:1.15;'>+${r['Δ Cost (USD)']:,.2f}</div>", unsafe_allow_html=True)
+                                st.markdown(f"<span style='font-size:12px; color:#047857; background:#D1FAE5; padding:3px 7px; border-radius:999px;'>${r['Min Cost (USD)']:,.2f} → ${r['Max Cost (USD)']:,.2f}</span>", unsafe_allow_html=True)
+                                st.caption(f"{short_workflow_name(r['Min Cost Workflow'], 40)} → {short_workflow_name(r['Max Cost Workflow'], 40)}")
 
-        with time_tab:
-            st.caption("Pie charts show the within-workflow contribution of each RAM to total turnaround time.")
-            wf_groups = list(step_df.groupby('Workflow', sort=False))
-            for row_start in range(0, len(wf_groups), 2):
-                cols = st.columns(min(2, len(wf_groups[row_start:row_start + 2])))
-                for col, (wf, group) in zip(cols, wf_groups[row_start:row_start + 2]):
-                    with col:
-                        st.markdown(f"##### {short_workflow_name(wf, 55)}")
-                        chart_df = group[group['Total Time (h)'] > 0].copy()
-                        if chart_df.empty:
-                            st.info("No positive time values available.")
-                        else:
-                            chart_df['Chart Label'] = chart_df.apply(lambda r: make_chart_label(r['Step'], r['RAM ID'], r['RAM Name']), axis=1)
-                            chart_df['Full Label'] = chart_df.apply(lambda r: f"Step {int(r['Step'])}: {r['RAM ID']} - {r['RAM Name']}", axis=1)
-                            fig_time = px.pie(
-                                chart_df,
-                                values='Total Time (h)',
-                                names='Chart Label',
-                                hole=0.5,
-                                title="Time Distribution",
-                                custom_data=['Full Label', 'Time Share (%)']
-                            )
-                            fig_time.update_layout(showlegend=True, margin=dict(t=45, b=10, l=10, r=10), height=340)
-                            fig_time.update_traces(
-                                hovertemplate="<b>%{label}</b><br>Total Time: %{value:.2f} h<br>Share: %{percent:.1%}<extra></extra>",
-                                sort=False
-                            )
-                            st.plotly_chart(fig_time, width='stretch', key=f'time_breakdown_{safe_key(wf)}')
+            st.divider()
+            time_tab, cost_tab = st.tabs(["⏱️ Time composition", "💰 Cost composition"])
 
-        with cost_tab:
-            st.caption("Pie charts show the within-workflow contribution of each RAM to total cost.")
-            wf_groups = list(step_df.groupby('Workflow', sort=False))
-            for row_start in range(0, len(wf_groups), 2):
-                cols = st.columns(min(2, len(wf_groups[row_start:row_start + 2])))
-                for col, (wf, group) in zip(cols, wf_groups[row_start:row_start + 2]):
-                    with col:
-                        st.markdown(f"##### {short_workflow_name(wf, 55)}")
-                        chart_df = group[group['Total Cost (USD)'] > 0].copy()
-                        if chart_df.empty:
-                            st.info("No positive cost values available.")
-                        else:
-                            chart_df['Chart Label'] = chart_df.apply(lambda r: make_chart_label(r['Step'], r['RAM ID'], r['RAM Name']), axis=1)
-                            chart_df['Full Label'] = chart_df.apply(lambda r: f"Step {int(r['Step'])}: {r['RAM ID']} - {r['RAM Name']}", axis=1)
-                            fig_cost_breakdown = px.pie(
-                                chart_df,
-                                values='Total Cost (USD)',
-                                names='Chart Label',
-                                hole=0.5,
-                                title="Cost Distribution",
-                                custom_data=['Full Label', 'Cost Share (%)']
-                            )
-                            fig_cost_breakdown.update_layout(showlegend=True, margin=dict(t=45, b=10, l=10, r=10), height=340)
-                            fig_cost_breakdown.update_traces(
-                                hovertemplate="<b>%{label}</b><br>Total Cost: $%{value:,.2f}<br>Share: %{percent:.1%}<extra></extra>",
-                                sort=False
-                            )
-                            st.plotly_chart(fig_cost_breakdown, width='stretch', key=f'cost_breakdown_{safe_key(wf)}')
+            with time_tab:
+                st.caption("Pie charts show the within-workflow contribution of each RAM to total turnaround time.")
+                wf_groups = list(step_df.groupby('Workflow', sort=False))
+                for row_start in range(0, len(wf_groups), 2):
+                    cols = st.columns(min(2, len(wf_groups[row_start:row_start + 2])))
+                    for col, (wf, group) in zip(cols, wf_groups[row_start:row_start + 2]):
+                        with col:
+                            st.markdown(f"##### {short_workflow_name(wf, 55)}")
+                            chart_df = group[group['Total Time (h)'] > 0].copy()
+                            if chart_df.empty:
+                                st.info("No positive time values available.")
+                            else:
+                                chart_df['Chart Label'] = chart_df.apply(lambda r: make_chart_label(r['Step'], r['RAM ID'], r['RAM Name']), axis=1)
+                                chart_df['Full Label'] = chart_df.apply(lambda r: f"Step {int(r['Step'])}: {r['RAM ID']} - {r['RAM Name']}", axis=1)
+                                fig_time = px.pie(
+                                    chart_df,
+                                    values='Total Time (h)',
+                                    names='Chart Label',
+                                    hole=0.5,
+                                    title="Time Distribution",
+                                    custom_data=['Full Label', 'Time Share (%)']
+                                )
+                                fig_time.update_layout(showlegend=True, margin=dict(t=45, b=10, l=10, r=10), height=340)
+                                fig_time.update_traces(
+                                    hovertemplate="<b>%{label}</b><br>Total Time: %{value:.2f} h<br>Share: %{percent:.1%}<extra></extra>",
+                                    sort=False
+                                )
+                                st.plotly_chart(fig_time, width='stretch', key=f'time_breakdown_{safe_key(wf)}')
+
+            with cost_tab:
+                st.caption("Pie charts show the within-workflow contribution of each RAM to total cost.")
+                wf_groups = list(step_df.groupby('Workflow', sort=False))
+                for row_start in range(0, len(wf_groups), 2):
+                    cols = st.columns(min(2, len(wf_groups[row_start:row_start + 2])))
+                    for col, (wf, group) in zip(cols, wf_groups[row_start:row_start + 2]):
+                        with col:
+                            st.markdown(f"##### {short_workflow_name(wf, 55)}")
+                            chart_df = group[group['Total Cost (USD)'] > 0].copy()
+                            if chart_df.empty:
+                                st.info("No positive cost values available.")
+                            else:
+                                chart_df['Chart Label'] = chart_df.apply(lambda r: make_chart_label(r['Step'], r['RAM ID'], r['RAM Name']), axis=1)
+                                chart_df['Full Label'] = chart_df.apply(lambda r: f"Step {int(r['Step'])}: {r['RAM ID']} - {r['RAM Name']}", axis=1)
+                                fig_cost_breakdown = px.pie(
+                                    chart_df,
+                                    values='Total Cost (USD)',
+                                    names='Chart Label',
+                                    hole=0.5,
+                                    title="Cost Distribution",
+                                    custom_data=['Full Label', 'Cost Share (%)']
+                                )
+                                fig_cost_breakdown.update_layout(showlegend=True, margin=dict(t=45, b=10, l=10, r=10), height=340)
+                                fig_cost_breakdown.update_traces(
+                                    hovertemplate="<b>%{label}</b><br>Total Cost: $%{value:,.2f}<br>Share: %{percent:.1%}<extra></extra>",
+                                    sort=False
+                                )
+                                st.plotly_chart(fig_cost_breakdown, width='stretch', key=f'cost_breakdown_{safe_key(wf)}')
 
 
 # ==========================================
 # Tab 4. Equipment & Consumables
 # ==========================================
 with resource_tab:
-    eq_tab, mat_tab = st.tabs(["🤖 Required Equipment", "📦 Consumables"])
+    if not pairwise_ready:
+        st.info("Equipment & Consumables comparison is pairwise. Select exactly two workflows to use this tab.")
+    else:
+        eq_tab, mat_tab = st.tabs(["🤖 Required Equipment", "📦 Consumables"])
 
-    with eq_tab:
-        st.markdown("### 🤖 Required Robots and Functional Devices")
-        if equipment_df.empty:
-            st.info("No equipment metadata are available in the selected workflow steps.")
-        else:
-            equipment_summary = equipment_df.groupby(['Workflow', 'Equipment Type'])['Equipment'].apply(
-                lambda x: ", ".join(sorted(set(x)))
-            ).reset_index()
-            equipment_matrix = equipment_summary.pivot(index='Workflow', columns='Equipment Type', values='Equipment').fillna("None")
-            st.dataframe(equipment_matrix, width='stretch')
-
-            all_sets = {
-                wf: set(group['Equipment'].dropna().astype(str).tolist())
-                for wf, group in equipment_df.groupby('Workflow')
-            }
-            if all_sets:
-                common_equipment = set.intersection(*all_sets.values()) if len(all_sets) > 1 else list(all_sets.values())[0]
-                st.info(f"**Common equipment:** {', '.join(sorted(common_equipment)) if common_equipment else 'None'}")
-
-                specific_equipment = []
-                for wf, eq_set in all_sets.items():
-                    other_eq = set.union(*(s for k, s in all_sets.items() if k != wf)) if len(all_sets) > 1 else set()
-                    unique_eq = sorted(eq_set - other_eq)
-                    specific_equipment.append({"Workflow": wf, "Workflow-specific equipment": ", ".join(unique_eq) if unique_eq else "None"})
-                st.dataframe(pd.DataFrame(specific_equipment), hide_index=True, width='stretch')
-
-    with mat_tab:
-        st.markdown("### 📦 Consumable Cost Drivers")
-        if material_df.empty:
-            st.info("No consumable metadata are available for the selected workflows.")
-        else:
-            material_summary = material_df.groupby(['Workflow', 'Material Name'], as_index=False)['Total Price (USD)'].sum()
-            material_matrix = material_summary.pivot(index='Material Name', columns='Workflow', values='Total Price (USD)').fillna(0.0)
-
-            st.markdown("#### Workflow-level consumable cost distribution")
-            st.caption("Pie charts show the major consumables driving material cost within each workflow. Low-cost items are grouped as Other when needed.")
-            wf_material_groups = list(material_summary.groupby('Workflow', sort=False))
-            for row_start in range(0, len(wf_material_groups), 2):
-                cols = st.columns(min(2, len(wf_material_groups[row_start:row_start + 2])))
-                for col, (wf, group) in zip(cols, wf_material_groups[row_start:row_start + 2]):
-                    with col:
-                        st.markdown(f"##### {short_workflow_name(wf, 55)}")
-                        chart_df = make_top_with_other(group, 'Material Name', 'Total Price (USD)', top_n=6)
-                        chart_df = chart_df[chart_df['Total Price (USD)'] > 0]
-                        if chart_df.empty:
-                            st.info("No positive consumable costs available.")
-                        else:
-                            fig_consumable = px.pie(
-                                chart_df,
-                                values='Total Price (USD)',
-                                names='Material Name',
-                                hole=0.5,
-                                title='Consumable Cost Drivers'
-                            )
-                            fig_consumable.update_layout(showlegend=True, margin=dict(t=45, b=10, l=10, r=10), height=340)
-                            fig_consumable.update_traces(
-                                hovertemplate="<b>%{label}</b><br>Cost: $%{value:,.2f}<br>Share: %{percent:.1%}<extra></extra>",
-                                sort=False
-                            )
-                            st.plotly_chart(fig_consumable, width='stretch', key=f'consumable_pie_{safe_key(wf)}')
-
-                            top_row = chart_df.sort_values('Total Price (USD)', ascending=False).iloc[0]
-                            total = chart_df['Total Price (USD)'].sum()
-                            share = (top_row['Total Price (USD)'] / total * 100) if total > 0 else 0
-                            st.info(
-                                f"Top driver: **{top_row['Material Name']}** "
-                                f"(${top_row['Total Price (USD)']:,.2f}, {share:.1f}%)"
-                            )
-
-            st.divider()
-            st.markdown("#### 🔎 Consumable Cost Change Highlights")
-            st.caption("Only shared consumables whose costs differ across workflows are highlighted here.")
-            material_delta_df = build_material_delta_dataframe(material_df)
-            if material_delta_df.empty:
-                st.info("No consumable cost changes detected. This means the selected workflows do not share comparable consumables, or no consumable costs differ between them.")
+        with eq_tab:
+            st.markdown("### 🤖 Required Robots and Functional Devices")
+            if equipment_df.empty:
+                st.info("No equipment metadata are available in the selected workflow steps.")
             else:
-                changed_material_delta = material_delta_df[material_delta_df['Δ Cost (USD)'].abs() > 1e-9].copy()
-                if changed_material_delta.empty:
-                    st.info("No consumable cost changes detected. Shared consumables exist, but their costs are identical across the selected workflows.")
+                equipment_summary = equipment_df.groupby(['Workflow', 'Equipment Type'])['Equipment'].apply(
+                    lambda x: ", ".join(sorted(set(x)))
+                ).reset_index()
+                equipment_matrix = equipment_summary.pivot(index='Workflow', columns='Equipment Type', values='Equipment').fillna("None")
+                st.dataframe(equipment_matrix, width='stretch')
+
+                all_sets = {
+                    wf: set(group['Equipment'].dropna().astype(str).tolist())
+                    for wf, group in equipment_df.groupby('Workflow')
+                }
+                if all_sets:
+                    common_equipment = set.intersection(*all_sets.values()) if len(all_sets) > 1 else list(all_sets.values())[0]
+                    st.info(f"**Common equipment:** {', '.join(sorted(common_equipment)) if common_equipment else 'None'}")
+
+                    specific_equipment = []
+                    for wf, eq_set in all_sets.items():
+                        other_eq = set.union(*(s for k, s in all_sets.items() if k != wf)) if len(all_sets) > 1 else set()
+                        unique_eq = sorted(eq_set - other_eq)
+                        specific_equipment.append({"Workflow": wf, "Workflow-specific equipment": ", ".join(unique_eq) if unique_eq else "None"})
+                    st.dataframe(pd.DataFrame(specific_equipment), hide_index=True, width='stretch')
+
+        with mat_tab:
+            st.markdown("### 📦 Consumable Cost Drivers")
+            if material_df.empty:
+                st.info("No consumable metadata are available for the selected workflows.")
+            else:
+                material_summary = material_df.groupby(['Workflow', 'Material Name'], as_index=False)['Total Price (USD)'].sum()
+                material_matrix = material_summary.pivot(index='Material Name', columns='Workflow', values='Total Price (USD)').fillna(0.0)
+
+                st.markdown("#### Workflow-level consumable cost distribution")
+                st.caption("Pie charts show the major consumables driving material cost within each workflow. Low-cost items are grouped as Other when needed.")
+                wf_material_groups = list(material_summary.groupby('Workflow', sort=False))
+                for row_start in range(0, len(wf_material_groups), 2):
+                    cols = st.columns(min(2, len(wf_material_groups[row_start:row_start + 2])))
+                    for col, (wf, group) in zip(cols, wf_material_groups[row_start:row_start + 2]):
+                        with col:
+                            st.markdown(f"##### {short_workflow_name(wf, 55)}")
+                            chart_df = make_top_with_other(group, 'Material Name', 'Total Price (USD)', top_n=6)
+                            chart_df = chart_df[chart_df['Total Price (USD)'] > 0]
+                            if chart_df.empty:
+                                st.info("No positive consumable costs available.")
+                            else:
+                                fig_consumable = px.pie(
+                                    chart_df,
+                                    values='Total Price (USD)',
+                                    names='Material Name',
+                                    hole=0.5,
+                                    title='Consumable Cost Drivers'
+                                )
+                                fig_consumable.update_layout(showlegend=True, margin=dict(t=45, b=10, l=10, r=10), height=340)
+                                fig_consumable.update_traces(
+                                    hovertemplate="<b>%{label}</b><br>Cost: $%{value:,.2f}<br>Share: %{percent:.1%}<extra></extra>",
+                                    sort=False
+                                )
+                                st.plotly_chart(fig_consumable, width='stretch', key=f'consumable_pie_{safe_key(wf)}')
+
+                                top_row = chart_df.sort_values('Total Price (USD)', ascending=False).iloc[0]
+                                total = chart_df['Total Price (USD)'].sum()
+                                share = (top_row['Total Price (USD)'] / total * 100) if total > 0 else 0
+                                st.info(
+                                    f"Top driver: **{top_row['Material Name']}** "
+                                    f"(${top_row['Total Price (USD)']:,.2f}, {share:.1f}%)"
+                                )
+
+                st.divider()
+                st.markdown("#### 🔎 Consumable Cost Change Highlights")
+                st.caption("Only shared consumables whose costs differ across workflows are highlighted here.")
+                material_delta_df = build_material_delta_dataframe(material_df)
+                if material_delta_df.empty:
+                    st.info("No consumable cost changes detected. This means the selected workflows do not share comparable consumables, or no consumable costs differ between them.")
                 else:
-                    top_changed_materials = changed_material_delta.sort_values('Δ Cost (USD)', ascending=False).head(6)
-                    st.success(f"Changed shared consumables detected: **{len(changed_material_delta)} / {len(material_delta_df)}**")
+                    changed_material_delta = material_delta_df[material_delta_df['Δ Cost (USD)'].abs() > 1e-9].copy()
+                    if changed_material_delta.empty:
+                        st.info("No consumable cost changes detected. Shared consumables exist, but their costs are identical across the selected workflows.")
+                    else:
+                        top_changed_materials = changed_material_delta.sort_values('Δ Cost (USD)', ascending=False).head(6)
+                        st.success(f"Changed shared consumables detected: **{len(changed_material_delta)} / {len(material_delta_df)}**")
 
-                    for _, r in top_changed_materials.iterrows():
-                        with st.container(border=True):
-                            st.markdown(f"##### 📦 {r['Material Name']}")
-                            st.markdown("**Cost change**")
-                            st.markdown(f"<div style='font-size:28px; font-weight:650; line-height:1.15;'>+${r['Δ Cost (USD)']:,.2f}</div>", unsafe_allow_html=True)
-                            st.markdown(f"<span style='font-size:12px; color:#047857; background:#D1FAE5; padding:3px 7px; border-radius:999px;'>${r['Min Cost (USD)']:,.2f} → ${r['Max Cost (USD)']:,.2f}</span>", unsafe_allow_html=True)
-                            st.caption(
-                                f"{short_workflow_name(r['Min Cost Workflow'], 45)} → {short_workflow_name(r['Max Cost Workflow'], 45)}"
-                            )
+                        for _, r in top_changed_materials.iterrows():
+                            with st.container(border=True):
+                                st.markdown(f"##### 📦 {r['Material Name']}")
+                                st.markdown("**Cost change**")
+                                st.markdown(f"<div style='font-size:28px; font-weight:650; line-height:1.15;'>+${r['Δ Cost (USD)']:,.2f}</div>", unsafe_allow_html=True)
+                                st.markdown(f"<span style='font-size:12px; color:#047857; background:#D1FAE5; padding:3px 7px; border-radius:999px;'>${r['Min Cost (USD)']:,.2f} → ${r['Max Cost (USD)']:,.2f}</span>", unsafe_allow_html=True)
+                                st.caption(
+                                    f"{short_workflow_name(r['Min Cost Workflow'], 45)} → {short_workflow_name(r['Max Cost Workflow'], 45)}"
+                                )
 
-            with st.expander("View consumable cost matrix"):
-                st.dataframe(
-                    material_matrix,
-                    width='stretch',
-                    column_config={col: st.column_config.NumberColumn(format="$%,.2f") for col in material_matrix.columns}
-                )
+                with st.expander("View consumable cost matrix"):
+                    st.dataframe(
+                        material_matrix,
+                        width='stretch',
+                        column_config={col: st.column_config.NumberColumn(format="$%,.2f") for col in material_matrix.columns}
+                    )
 
-            with st.expander("View all consumable records"):
-                st.dataframe(
-                    material_summary.sort_values(['Workflow', 'Total Price (USD)'], ascending=[True, False]),
-                    hide_index=True,
-                    width='stretch',
-                    column_config={"Total Price (USD)": st.column_config.NumberColumn(format="$%,.2f")}
-                )
+                with st.expander("View all consumable records"):
+                    st.dataframe(
+                        material_summary.sort_values(['Workflow', 'Total Price (USD)'], ascending=[True, False]),
+                        hide_index=True,
+                        width='stretch',
+                        column_config={"Total Price (USD)": st.column_config.NumberColumn(format="$%,.2f")}
+                    )
