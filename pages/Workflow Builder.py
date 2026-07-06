@@ -144,37 +144,83 @@ def get_final_validation_ram_label():
     return f"{last_ram.get('RAM_ID', '')} - {last_ram.get('RAM_Name', '')}"
 
 def safe_eval_list(val):
-    """Safely parse list-like or JSON strings into python objects"""
-    # [CORE FIX]: If val is already a list or dict, bypass pd.isna() to prevent ValueError
+    """Safely parse list-like or JSON strings into python objects.
+    Handles legacy double-encoded JSON strings produced by nested json.dumps calls.
+    """
     if isinstance(val, (list, dict)):
         return val
 
     if val is None:
         return []
 
-    # Safely handle float NaN values
     if isinstance(val, float) and math.isnan(val):
         return []
 
-    # Perform pandas null check only on single scalar values to prevent ambiguous truth value errors
     try:
         if pd.isna(val):
             return []
     except ValueError:
         return []
 
-    val_str = str(val).strip()
-    if val_str in ["", "[]", "nan", "NaN", "None"]:
-        return []
+    parsed = val
+    # Try multiple decoding passes to recover values like:
+    # "[{\"Type\": \"Input\"}]" or '"[{...}]"'
+    for _ in range(3):
+        if isinstance(parsed, (list, dict)):
+            return parsed
 
-    try:
-        # Standardize single quotes to double quotes for valid JSON parsing
-        return json.loads(val_str.replace("'", '"'))
-    except:
-        try:
-            return ast.literal_eval(val_str)
-        except:
+        parsed_str = str(parsed).strip()
+        if parsed_str in ["", "[]", "nan", "NaN", "None", "null"]:
             return []
+
+        try:
+            parsed = json.loads(parsed_str)
+            continue
+        except Exception:
+            pass
+
+        try:
+            parsed = ast.literal_eval(parsed_str)
+            continue
+        except Exception:
+            return []
+
+    return parsed if isinstance(parsed, (list, dict)) else []
+
+
+def ensure_list_of_dicts(val):
+    """Return only dictionary items from a parsed list-like value."""
+    parsed = safe_eval_list(val)
+    if isinstance(parsed, dict):
+        return [parsed]
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in parsed if isinstance(item, dict)]
+
+
+def normalize_material_items(val):
+    """Normalize material records and drop malformed non-dict entries."""
+    return ensure_list_of_dicts(val)
+
+
+def normalize_step_record(step):
+    """Normalize a workflow step loaded from WorkflowDB before use in Builder."""
+    if not isinstance(step, dict):
+        return None
+    step_copy = step.copy()
+    step_copy['io_data'] = ensure_list_of_dicts(step_copy.get('io_data', '[]'))
+    step_copy['material_data'] = normalize_material_items(step_copy.get('material_data', '[]'))
+    return step_copy
+
+
+def normalize_workflow_steps(steps):
+    """Normalize Steps_RAMList into list of step dictionaries with nested arrays restored."""
+    normalized = []
+    for step in safe_eval_list(steps):
+        step_copy = normalize_step_record(step)
+        if step_copy is not None:
+            normalized.append(step_copy)
+    return normalized
 
 
 def normalize_io_keys(io_list):
@@ -238,7 +284,7 @@ def refresh_ram_metadata(ram_dict):
     """Restores io_data from string to objects and generates UI labels/meta"""
 
     # 1. Restore io_data
-    io_list = safe_eval_list(ram_dict.get('io_data', '[]'))
+    io_list = ensure_list_of_dicts(ram_dict.get('io_data', '[]'))
 
     # [FIX 1] Normalize key names: "Substance Class" -> "Classification"
     normalized_io = []
@@ -255,7 +301,7 @@ def refresh_ram_metadata(ram_dict):
     ram_dict['io_data'] = io_list
 
     # 2. Restore material_data (no issue here)
-    mat_list = safe_eval_list(ram_dict.get('material_data', '[]'))
+    mat_list = normalize_material_items(ram_dict.get('material_data', '[]'))
     ram_dict['material_data'] = mat_list
 
     # --- Internal Helpers ---
@@ -457,7 +503,7 @@ if 'edit_workflow_target' in st.session_state:
         st.session_state.wf_successful_samples = 96
         st.session_state.wf_total_samples = 96
     try:
-        reconstructed, steps = [], safe_eval_list(target.get('Steps_RAMList', '[]'))
+        reconstructed, steps = [], normalize_workflow_steps(target.get('Steps_RAMList', '[]'))
         for s in steps:
             match = full_db[full_db['RAM_ID'] == s.get('id')]
             if not match.empty:
@@ -519,8 +565,8 @@ def edit_ram_dialog(index):
 
     # Initialize or sync temporary state when RAM changes
     if (io_key not in st.session_state or st.session_state.get(tracking_key) != ram_id):
-        st.session_state[io_key] = safe_eval_list(ram.get('io_data', '[]'))
-        st.session_state[mat_key] = safe_eval_list(ram.get('material_data', '[]'))
+        st.session_state[io_key] = ensure_list_of_dicts(ram.get('io_data', '[]'))
+        st.session_state[mat_key] = normalize_material_items(ram.get('material_data', '[]'))
         st.session_state[tracking_key] = ram_id
 
     col1, col2 = st.columns(2)
@@ -629,7 +675,7 @@ def edit_ram_dialog(index):
 
     # Save Option A: Session state ONLY (No write commands to cloud DB)
     if st.button("✨ Apply to Session Only", width='stretch', type="secondary"):
-        mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key])
+        mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key] if isinstance(m, dict))
         updated = ram.copy()
         updated.update({
             'RAM_Name': e_name,
@@ -676,7 +722,7 @@ def edit_ram_dialog(index):
                 saved_pw = raw_pw_str[:-2] if raw_pw_str.endswith('.0') else raw_pw_str
 
                 if am.is_edit_authorized(e_code, saved_pw):
-                    mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key])
+                    mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key] if isinstance(m, dict))
                     updated = ram.copy()
 
                     # Standardize access code columns
@@ -748,7 +794,7 @@ def edit_ram_dialog(index):
                         st.error(f"❌ {auth_msg}")
                     else:
                         new_id = generate_next_derivative_id(ram['RAM_ID'])
-                        mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key])
+                        mat_sum = sum(to_float(m.get('Total Price', 0)) for m in st.session_state[mat_key] if isinstance(m, dict))
                         new_ram = ram.copy()
 
                         # Keep state variables as clean native lists inside memory to prevent double-stringification
@@ -920,7 +966,7 @@ with st.sidebar:
                     st.session_state.wf_total_samples = 96
 
                 reconstructed = []
-                steps = safe_eval_list(target.get('Steps_RAMList', '[]'))
+                steps = normalize_workflow_steps(target.get('Steps_RAMList', '[]'))
                 for s in steps:
                     match = full_db[full_db['RAM_ID'] == s.get('id')]
                     if not match.empty:
@@ -1136,8 +1182,8 @@ with st.sidebar:
                                 "op_time": to_float(s.get('Operation_Time(h)', 0)),
                                 "ho_time": to_float(s.get('Hands_on_Time(h)', 0)),
                                 "mat_cost": to_float(s.get('Total_Material_Cost(USD)', 0)),
-                                "io_data": json.dumps(s.get('io_data', [])),
-                                "material_data": json.dumps(s.get('material_data', [])),
+                                "io_data": ensure_list_of_dicts(s.get('io_data', '[]')),
+                                "material_data": normalize_material_items(s.get('material_data', '[]')),
                                 "Robot": s.get('Robot', 'None'),
                                 "Functional_Device": s.get('Functional_Device', 'None')
                             } for i, s in enumerate(st.session_state.workflow)]),
@@ -1146,7 +1192,7 @@ with st.sidebar:
                             "Hands_on_Time(h)": wf_df_tmp['Hands_on_Time(h)'].sum(),
                             "Material_Summary": json.dumps(
                                 [{**m, "Source_RAM": s['RAM_ID']} for s in st.session_state.workflow for m in
-                                 safe_eval_list(s.get('material_data', '[]'))]
+                                 normalize_material_items(s.get('material_data', '[]'))]
                             ),
                             "Material_Cost(USD)": mat_c,
                             "Labor_Cost(USD)": lab_c,
@@ -1486,7 +1532,7 @@ with t3:
     if st.session_state.workflow:
         all_m = []
         for s in st.session_state.workflow:
-            mats = safe_eval_list(s.get('material_data', '[]'))
+            mats = normalize_material_items(s.get('material_data', '[]'))
             for m in mats:
                 # Standardize material data labels
                 nm = {
