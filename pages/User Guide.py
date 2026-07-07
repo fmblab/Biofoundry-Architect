@@ -115,6 +115,11 @@ with tab0:
     Premium or privileged codes may be configured to allow unlimited data storage for large-scale operations.
     """)
 
+    st.markdown("#### 🌱 Community Curation & MasterDB Deposition")
+    st.info("""
+    Although users retain full control over the entries they created and may edit or delete them at any time, administrators monitor user-submitted entities to identify records that may provide broader value to the community. When such entities are identified, we seek the user's permission to deposit them into the **MasterDB** for long-term curation and sharing.
+    """)
+
     st.warning("""
     **⚠️ Default Session Quota (Code-Free Sessions)** Users operating without an Access Code are subject to strict default storage limits:
     * **Strict limit**: Capped at a maximum of **five entries** each for RAMs, Workflows, Robots, Devices, and Vessels.
