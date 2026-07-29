@@ -665,7 +665,7 @@ with tab2:
             max_width=700
         )
 
-        st.markdown("#### 4. Loading to Builder (Iterative Optimization)")
+        st.markdown("#### 4. Loading to Builder")
         st.markdown("""
         * Click **\"Load to Workflow Builder\"** to import an archived database workflow back into the live builder session.
         * This allows you to immediately test modifications, swap equipment, or recalculate costs.
@@ -675,7 +675,7 @@ with tab2:
         # [Image 25] - Centered Base64 card showing loaded workflow in builder
         render_image_card(
             "assets/wf_builder_loaded.png",
-            caption="Iterative workflow development: Live sequence loaded from database for optimization",
+            caption="Iterative workflow development: Live sequence loaded from database",
             max_width=700
         )
 
