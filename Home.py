@@ -121,7 +121,7 @@ def show_intro():
     <div class='h-sub'>A robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
     <div class='h-affil'>SKy Biofoundry, Sungkyunkwan University (SKKU), Rep. of Korea</div>
     <div class='h-hr'></div>
-    <div class='h-img-header'>Architect & Optimize your lab automation</div>
+    <div class='h-img-header'>Architect & Evaluate your lab automation</div>
 </div>
     """, unsafe_allow_html=True)
 
