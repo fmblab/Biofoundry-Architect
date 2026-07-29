@@ -723,7 +723,7 @@ with tab3:
     # Superset citation anchors with title attributes removed
     st.markdown("""
     The **Workflow Analytics** workspace enables researchers to compare performance metrics between multiple finalized workflows stored in the database. 
-    By evaluating **Turnaround Time (TAT)**, **Total Cost (USD)**, and the **Experiment Price Index (EPI)**<sup>[<a href="#anal-ref1" target="_self">1</a>]</sup> side-by-side, you can quantitatively evaluate and optimize workflow configurations<sup>[<a href="#anal-ref2" target="_self">2</a>, <a href="#anal-ref3" target="_self">3</a>]</sup>.
+    By evaluating **Turnaround Time (TAT)**, **Total Cost (USD)**, and the **Experiment Price Index (EPI)**<sup>[<a href="#anal-ref1" target="_self">1</a>]</sup> side-by-side, you can quantitatively evaluate and compare workflow configurations<sup>[<a href="#anal-ref2" target="_self">2</a>, <a href="#anal-ref3" target="_self">3</a>]</sup>.
     """, unsafe_allow_html=True)
 
     st.markdown("---")
