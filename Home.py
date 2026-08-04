@@ -112,45 +112,26 @@ def show_intro():
             transform: none !important; 
         }
 
-        .publication-card {
-            margin: 14px auto 4px auto;
-            padding: 12px 18px;
-            border: 1px solid #DCE6F2;
-            border-radius: 12px;
-            background: #F8FAFC;
+        .publication-line {
+            margin: 14px auto 2px auto;
+            max-width: 1120px;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-            max-width: 640px;
-            min-width: 420px;
+            color: #0F172A;
+            font-size: 16px;
+            line-height: 1.28;
+            font-weight: 500;
+            white-space: normal;
         }
-        .publication-card .pub-label {
-            font-size: 11px;
-            color: #3B82F6;
+        .publication-line .pub-authors {
             font-weight: 700;
-            letter-spacing: 0.03em;
-            text-transform: uppercase;
-            margin-bottom: 4px;
         }
-        .publication-card .pub-authors {
-            font-size: 12px;
-            color: #475569;
-            font-weight: 700;
-            margin-bottom: 4px;
+        .publication-line .pub-journal {
+            color: #1D4ED8;
+            font-style: italic;
         }
-        .publication-card .pub-title {
-            font-size: 12px;
-            color: #1E293B;
-            line-height: 1.35;
-            margin-bottom: 4px;
-        }
-        .publication-card .pub-journal {
-            font-size: 11.5px;
-            color: #64748B;
-            line-height: 1.35;
-        }
-        @media (max-width: 760px) {
-            .publication-card {
-                min-width: 0;
+        @media (max-width: 900px) {
+            .publication-line {
+                font-size: 14px;
                 max-width: 100%;
             }
         }
@@ -186,13 +167,12 @@ def show_intro():
         if st.button("Get Started", type="primary", width="stretch"):
             st.switch_page(wf_build_page)
 
-    # Publication Card Section
+    # Publication Line Section
     st.markdown("""
-    <div class="publication-card">
-        <div class="pub-label">Publication</div>
-        <div class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026.xx)</div>
-        <div class="pub-title">Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
-        <div class="pub-journal"><i>ACS Synthetic Biology</i>, Accepted (IF = 4.5; JCR Top 18.2% in Biochemical Research Methods)</div>
+    <div class="publication-line">
+        <span class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026), </span>
+        <span>Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation, </span>
+        <span class="pub-journal">ACS Synthetic Biology</span><span>, Accepted.</span>
     </div>
     """, unsafe_allow_html=True)
 
