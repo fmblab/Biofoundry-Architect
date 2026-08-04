@@ -113,26 +113,36 @@ def show_intro():
         }
 
         .publication-line {
-            margin: 14px auto 2px auto;
+            margin: 14px auto 6px auto;
             max-width: 1120px;
+            padding: 8px 16px;
             text-align: center;
-            color: #0F172A;
+            color: var(--text-color);
             font-size: 16px;
-            line-height: 1.28;
-            font-weight: 500;
+            line-height: 1.30;
+            font-weight: 400;
             white-space: normal;
+            background: rgba(148, 163, 184, 0.10);
+            border: 1px solid rgba(148, 163, 184, 0.20);
+            border-radius: 10px;
+        }
+        .publication-line .pub-prefix {
+            color: var(--text-color);
+            font-weight: 400;
         }
         .publication-line .pub-authors {
-            font-weight: 700;
+            font-weight: 400;
         }
         .publication-line .pub-journal {
-            color: #1D4ED8;
+            color: #3B82F6;
             font-style: italic;
+            font-weight: 400;
         }
         @media (max-width: 900px) {
             .publication-line {
                 font-size: 14px;
                 max-width: 100%;
+                padding: 8px 12px;
             }
         }
         </style>
@@ -170,7 +180,8 @@ def show_intro():
     # Publication Line Section
     st.markdown("""
     <div class="publication-line">
-        <span class="pub-authors">Publication: Park, J.S., Heo, Y.B., *Woo, H.M. (2026), </span>
+        <span class="pub-prefix">Publication: </span>
+        <span class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026), </span>
         <span>Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation, </span>
         <span class="pub-journal">ACS Synthetic Biology</span><span>, Accepted.</span>
     </div>
