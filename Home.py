@@ -113,30 +113,46 @@ def show_intro():
         }
 
         .publication-card {
-            margin-top: 18px;
-            padding: 14px 16px;
-            border: 1px solid #E2E8F0;
+            margin: 14px auto 4px auto;
+            padding: 12px 18px;
+            border: 1px solid #DCE6F2;
             border-radius: 12px;
             background: #F8FAFC;
-            text-align: left;
+            text-align: center;
             box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+            max-width: 640px;
+            min-width: 420px;
+        }
+        .publication-card .pub-label {
+            font-size: 11px;
+            color: #3B82F6;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
         }
         .publication-card .pub-authors {
-            font-size: 13px;
+            font-size: 12px;
             color: #475569;
-            font-weight: 600;
-            margin-bottom: 5px;
+            font-weight: 700;
+            margin-bottom: 4px;
         }
         .publication-card .pub-title {
-            font-size: 13px;
+            font-size: 12px;
             color: #1E293B;
-            line-height: 1.45;
-            margin-bottom: 5px;
+            line-height: 1.35;
+            margin-bottom: 4px;
         }
         .publication-card .pub-journal {
-            font-size: 12px;
+            font-size: 11.5px;
             color: #64748B;
-            line-height: 1.45;
+            line-height: 1.35;
+        }
+        @media (max-width: 760px) {
+            .publication-card {
+                min-width: 0;
+                max-width: 100%;
+            }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -163,7 +179,7 @@ def show_intro():
     """, unsafe_allow_html=True)
 
     # Button Section (Applies the latest 'width=stretch' syntax)
-    col1, col2, col3 = st.columns([1, 0.6, 1])
+    col1, col2, col3 = st.columns([0.75, 1.15, 0.75])
     with col2:
         # 1. Primary Action Button (Get Started)
         if st.button("Get Started", type="primary", width="stretch"):
@@ -171,6 +187,7 @@ def show_intro():
 
         st.markdown("""
         <div class="publication-card">
+            <div class="pub-label">Publication</div>
             <div class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026.xx)</div>
             <div class="pub-title">Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
             <div class="pub-journal"><i>ACS Synthetic Biology</i>, Accepted (IF = 4.5; JCR Top 18.2% in Biochemical Research Methods)</div>
