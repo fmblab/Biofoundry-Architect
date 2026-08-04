@@ -170,7 +170,7 @@ def show_intro():
     # Publication Line Section
     st.markdown("""
     <div class="publication-line">
-        <span class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026), </span>
+        <span class="pub-authors">Publication: Park, J.S., Heo, Y.B., *Woo, H.M. (2026), </span>
         <span>Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation, </span>
         <span class="pub-journal">ACS Synthetic Biology</span><span>, Accepted.</span>
     </div>
