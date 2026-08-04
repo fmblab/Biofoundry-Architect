@@ -111,6 +111,33 @@ def show_intro():
             background-color: transparent !important;
             transform: none !important; 
         }
+
+        .publication-card {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            background: #F8FAFC;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        }
+        .publication-card .pub-authors {
+            font-size: 13px;
+            color: #475569;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .publication-card .pub-title {
+            font-size: 13px;
+            color: #1E293B;
+            line-height: 1.45;
+            margin-bottom: 5px;
+        }
+        .publication-card .pub-journal {
+            font-size: 12px;
+            color: #64748B;
+            line-height: 1.45;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -141,6 +168,14 @@ def show_intro():
         # 1. Primary Action Button (Get Started)
         if st.button("Get Started", type="primary", width="stretch"):
             st.switch_page(wf_build_page)
+
+        st.markdown("""
+        <div class="publication-card">
+            <div class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026.xx)</div>
+            <div class="pub-title">Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
+            <div class="pub-journal"><i>ACS Synthetic Biology</i>, Accepted (IF = 4.5; JCR Top 18.2% in Biochemical Research Methods)</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # 2. Secondary Link Button (User Guide)
         if st.button("New to this tool?\nRead the User Guide 📖", type="secondary", width="stretch"):
