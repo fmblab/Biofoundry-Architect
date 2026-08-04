@@ -178,23 +178,27 @@ def show_intro():
 </div>
     """, unsafe_allow_html=True)
 
-    # Button Section (Applies the latest 'width=stretch' syntax)
-    col1, col2, col3 = st.columns([0.75, 1.15, 0.75])
-    with col2:
+    # Button Section
+    # Keep the primary CTA compact, while allowing the publication card to use a wider readable width.
+    btn_col1, btn_col2, btn_col3 = st.columns([1, 0.6, 1])
+    with btn_col2:
         # 1. Primary Action Button (Get Started)
         if st.button("Get Started", type="primary", width="stretch"):
             st.switch_page(wf_build_page)
 
-        st.markdown("""
-        <div class="publication-card">
-            <div class="pub-label">Publication</div>
-            <div class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026.xx)</div>
-            <div class="pub-title">Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
-            <div class="pub-journal"><i>ACS Synthetic Biology</i>, Accepted (IF = 4.5; JCR Top 18.2% in Biochemical Research Methods)</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Publication Card Section
+    st.markdown("""
+    <div class="publication-card">
+        <div class="pub-label">Publication</div>
+        <div class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026.xx)</div>
+        <div class="pub-title">Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation</div>
+        <div class="pub-journal"><i>ACS Synthetic Biology</i>, Accepted (IF = 4.5; JCR Top 18.2% in Biochemical Research Methods)</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        # 2. Secondary Link Button (User Guide)
+    # 2. Secondary Link Button (User Guide)
+    guide_col1, guide_col2, guide_col3 = st.columns([1, 0.6, 1])
+    with guide_col2:
         if st.button("New to this tool?\nRead the User Guide 📖", type="secondary", width="stretch"):
             st.switch_page(user_guide_page)
 
