@@ -137,6 +137,11 @@ def show_intro():
             color: #3B82F6;
             font-style: italic;
             font-weight: 400;
+            text-decoration: none;
+        }
+
+        .publication-line .pub-journal:hover {
+            text-decoration: underline;
         }
         @media (max-width: 900px) {
             .publication-line {
@@ -183,7 +188,7 @@ def show_intro():
         <span class="pub-prefix">Publication: </span>
         <span class="pub-authors">Park, J.S., Heo, Y.B., *Woo, H.M. (2026), </span>
         <span>Biofoundry Architect 1.0: a robot-assisted module configurator and workflow designer with hub interoperability and throughput-workflow economic evaluation, </span>
-        <span class="pub-journal">ACS Synthetic Biology</span><span>, Accepted.</span>
+        <a class="pub-journal" href="https://doi.org/10.1021/acssynbio.6c00456" target="_blank" rel="noopener noreferrer">ACS Synthetic Biology</a><span>, published online.</span>
     </div>
     """, unsafe_allow_html=True)
 
