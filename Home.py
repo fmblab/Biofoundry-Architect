@@ -219,7 +219,10 @@ def show_intro():
         (Office: 62-212; Lab.: 61-254) 2066 Seobu-ro, Jangan-gu, Suwon 16419, Rep. of Korea<br>
         E-mail: skybiofoundry@gmail.com
     </div>
-    <div style="font-size: 13px; color: #94A3B8; margin-top: 25px;">
+    <div style="font-size: 13px; color: #94A3B8; margin-top: 18px;">
+        Copyright Registration No. C-2026-033973
+    </div>
+    <div style="font-size: 13px; color: #94A3B8; margin-top: 8px;">
         © 2026 FMB Lab. All rights reserved.
     </div>
 </div>
