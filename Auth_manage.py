@@ -4,7 +4,7 @@ import streamlit as st
 MASTER_CODE = st.secrets["MASTER_CODE"]
 
 BLANK_CODE_VALUES = {"", "none", "nan", "empty"}
-DEFAULT_QUOTA = 5
+DEFAULT_QUOTA = 50
 
 
 def normalize_code(value):
@@ -56,7 +56,7 @@ def check_registration_quota(df, input_code, auth_df):
 
     Rules:
     - Master code: unlimited registration.
-    - Blank code: guest registration, limited to 5 entries.
+    - Blank code: guest registration, limited to 50 entries.
     - Authorized user code: quota is read from auth_df.
     - Invalid code: registration denied.
     """
@@ -74,11 +74,11 @@ def check_registration_quota(df, input_code, auth_df):
     # ==========================================
     if is_blank_code(code):
         current_count = count_registered_by_code(df, code)
-        quota_limit = 5
+        quota_limit = 50
 
         if current_count >= quota_limit:
             return False, (
-                "⚠️ Guest quota exceeded (Limit: 5). "
+                "⚠️ Guest quota exceeded (Limit: 50). "
                 "Please use an authorized Access Code."
             )
 
