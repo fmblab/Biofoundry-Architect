@@ -79,6 +79,28 @@ def sort_ram_db(df):
     return df
 
 
+def make_record_signature(row):
+    """Create a lightweight signature to detect whether the source DB row has changed."""
+    signature_cols = [
+        "RAM_ID", "Base_Root", "RAM_Name", "Purpose", "Process_Action",
+        "Robot", "Functional_Device", "Sample_Capacity", "Operation_Time(h)",
+        "Hands_on_Time(h)", "io_data", "material_data"
+    ]
+    return json.dumps(
+        {col: str(row.get(col, "")) for col in signature_cols},
+        sort_keys=True,
+        ensure_ascii=False
+    )
+
+
+def request_cross_page_db_refresh():
+    """Invalidate caches after a real DB write while keeping normal browsing API-light."""
+    get_db_sheet_data.clear()
+    st.cache_data.clear()
+    st.session_state.db_needs_refresh = True
+    st.session_state.ram_db_needs_refresh = True
+
+
 def apply_calc_to_edit_callback(val):
     st.session_state.f_m_p_input = val
 
@@ -188,7 +210,10 @@ st.session_state.edit_target = target_id
 assets = load_all_assets_optimized()
 
 with st.spinner("Syncing latest data from Cloud..."):
-    get_db_sheet_data.clear()
+    # Do not clear this cache on every widget rerun.
+    # It is cleared only after an actual DB write or an explicit cross-page refresh flag.
+    if st.session_state.pop("ram_editor_needs_refresh", False):
+        get_db_sheet_data.clear()
 
     m_db = get_db_sheet_data("RAM_MasterDB")
     u_db = get_db_sheet_data("RAM_UserDB")
@@ -216,14 +241,33 @@ if target_row_df.empty:
 
 r_data = target_row_df.iloc[0].to_dict()
 
-if st.session_state.get('current_loaded_id') != target_id:
+current_record_signature = make_record_signature(r_data)
+
+if (
+    st.session_state.get('current_loaded_id') != target_id
+    or st.session_state.get('current_loaded_signature') != current_record_signature
+):
+    # Initialize editable state only when opening a new RAM or when the DB source row changed.
+    # This prevents widget selections from blinking back to the DB value on ordinary reruns.
     st.session_state.edit_io_list = safe_eval_list(r_data.get('io_data', '[]'))
     st.session_state.edit_mat_list = safe_eval_list(r_data.get('material_data', '[]'))
     st.session_state.edit_cap = int(to_float(r_data.get('Sample_Capacity', 96)))
     st.session_state.edit_opt = str(r_data.get('Operation_Time(h)', "0.0"))
     st.session_state.edit_hot = str(r_data.get('Hands_on_Time(h)', "0.0"))
     st.session_state.edit_acts = smart_parse(r_data.get('Process_Action', ''), {})
+    st.session_state.edit_name = str(r_data.get('RAM_Name', ''))
+    st.session_state.edit_pre = str(r_data.get('Base_Root', target_id.split('-')[0])).upper().strip()
+    st.session_state.edit_purp = str(r_data.get('Purpose', ''))
+    st.session_state.edit_rbts = [
+        n for n in assets["robot"][1]
+        if n in smart_parse(r_data.get('Robot', ''), assets["robot"][0])
+    ]
+    st.session_state.edit_dvcs = [
+        n for n in assets["device"][1]
+        if n in smart_parse(r_data.get('Functional_Device', ''), assets["device"][0])
+    ]
     st.session_state.current_loaded_id = target_id
+    st.session_state.current_loaded_signature = current_record_signature
 
 # ==========================================
 # 3. UI Construction
@@ -248,8 +292,7 @@ with c_head2:
                     latest_db = get_db_sheet_data(source_worksheet)
                     updated_db = latest_db[latest_db['RAM_ID'] != target_id]
                     conn.update(spreadsheet=MY_SHEET_URL, worksheet=source_worksheet, data=updated_db)
-                    get_db_sheet_data.clear()
-                    st.session_state.db_needs_refresh = True
+                    request_cross_page_db_refresh()
                     st.success("Deleted successfully.")
                     time.sleep(0.5)
                     st.session_state.edit_target = None
@@ -301,13 +344,17 @@ st.divider()
 
 with st.form("metadata_form"):
     c_b1, c_b2 = st.columns(2)
-    new_name = c_b1.text_input("RAM Name", value=r_data.get('RAM_Name', ''))
-    old_pre = str(r_data.get('Base_Root', target_id.split('-')[0]))
-    new_pre = c_b2.text_input("RAM ID Prefix", value=old_pre).upper().strip()
-    new_purp = st.text_area("Purpose", value=r_data.get('Purpose', ''), height=100)
+    c_b1.text_input("RAM Name", key="edit_name")
+    old_pre = str(r_data.get('Base_Root', target_id.split('-')[0])).upper().strip()
+    c_b2.text_input("RAM ID Prefix", key="edit_pre")
+    st.text_area("Purpose", height=100, key="edit_purp")
     submitted = st.form_submit_button("Update Metadata Above")
     if submitted:
         st.toast("✅ Metadata updated in session! (Click 'Save to DB' below to finalize)")
+
+new_name = st.session_state.edit_name
+new_pre = str(st.session_state.edit_pre).upper().strip()
+new_purp = st.session_state.edit_purp
 
 final_id = target_id
 if new_pre != old_pre:
@@ -333,17 +380,19 @@ else:
         if guide_msg:
             st.info(guide_msg, icon="ℹ️")
     ch1, ch2 = st.columns(2)
-    new_rbts = ch1.multiselect(
+    ch1.multiselect(
         "Robots",
         options=assets["robot"][1],
-        default=[n for n in assets["robot"][1] if n in smart_parse(r_data.get('Robot', ''), assets["robot"][0])]
+        key="edit_rbts"
     )
-    new_dvcs = ch2.multiselect(
+    ch2.multiselect(
         "Devices",
         options=assets["device"][1],
-        default=[n for n in assets["device"][1] if
-                 n in smart_parse(r_data.get('Functional_Device', ''), assets["device"][0])]
+        key="edit_dvcs"
     )
+
+new_rbts = st.session_state.get("edit_rbts", [])
+new_dvcs = st.session_state.get("edit_dvcs", [])
 
 st.markdown("### 🧪 Input/Output")
 with st.container(border=True):
@@ -470,8 +519,7 @@ with st.container(border=True):
                     final_save_df = sort_ram_db(final_save_df)
 
                     conn.update(spreadsheet=MY_SHEET_URL, worksheet=source_worksheet, data=final_save_df)
-                    get_db_sheet_data.clear()
-                    st.session_state.db_needs_refresh = True
+                    request_cross_page_db_refresh()
                     st.success("Successfully updated!")
                     time.sleep(0.5)
                     st.session_state.edit_target = None
