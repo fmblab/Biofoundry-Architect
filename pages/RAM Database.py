@@ -143,15 +143,44 @@ def load_cloud_database():
         return pd.DataFrame()
 
 
-def force_refresh():
-    """Clear cache and trigger re-sync"""
+def force_refresh(mark_builder_refresh=False, show_toast=True):
+    """
+    Clear the RAM Database page cache with minimal API usage.
+
+    Notes
+    -----
+    - This page uses `_cached_db_fetch(ttl=60)` for routine browsing.
+    - `conn.read(..., ttl=0)` inside `_cached_db_fetch()` guarantees that a cache clear
+      fetches the latest Google Sheets data.
+    - `db_needs_refresh` is treated as a cross-page flag for Workflow Builder.
+      RAM Database must not consume/reset it, otherwise Builder will keep stale RAM data.
+    """
     _cached_db_fetch.clear()
-    st.session_state.db_needs_refresh = False
-    st.toast("Database cache cleared. Re-syncing...")
+    st.session_state.ram_db_needs_refresh = False
+
+    if mark_builder_refresh:
+        # Keep this True until Workflow Builder consumes it and clears its own cache.
+        st.session_state.db_needs_refresh = True
+        st.session_state.ram_db_consumed_global_refresh = True
+
+    if show_toast:
+        st.toast("Database cache cleared. Re-syncing...")
 
 
-if st.session_state.get('db_needs_refresh', False):
-    force_refresh()
+# Local RAM Database refresh flag: consumed by this page only.
+if st.session_state.get('ram_db_needs_refresh', False):
+    force_refresh(mark_builder_refresh=False, show_toast=True)
+
+# Cross-page refresh flag from RAM Editor / other DB-changing pages.
+# Clear this page's cache once, but preserve `db_needs_refresh=True` so Workflow Builder
+# can still detect the change and refresh its own RAM DB cache when the user opens it.
+elif st.session_state.get('db_needs_refresh', False) and not st.session_state.get('ram_db_consumed_global_refresh', False):
+    force_refresh(mark_builder_refresh=False, show_toast=False)
+    st.session_state.ram_db_consumed_global_refresh = True
+
+# Reset the local guard after Workflow Builder or another page has consumed the global flag.
+if not st.session_state.get('db_needs_refresh', False):
+    st.session_state.ram_db_consumed_global_refresh = False
 
 full_db = load_cloud_database()
 
@@ -173,7 +202,9 @@ if not full_db.empty:
         action_f = c3.multiselect("Action Filter", sorted(list(set(all_actions))))
         with c4:
             if st.button("🔄", help="Force database re-sync", width='stretch'):
-                force_refresh()
+                # Manual refresh: update this page immediately and notify Workflow Builder
+                # to clear its cached RAM DB on the next visit.
+                force_refresh(mark_builder_refresh=True)
                 st.rerun()
 
     mask = full_db['Source'].isin(source_f)
